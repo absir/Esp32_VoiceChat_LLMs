@@ -1,0 +1,15 @@
+{
+    "files.associations": {
+        "*.h": "c",
+        "new": "cpp",
+        "atomic": "cpp",
+        "cstddef": "cpp",
+        "cwchar": "cpp",
+        "string": "cpp",
+        "memory": "cpp",
+        "string_view": "cpp",
+        "type_traits": "cpp",
+        "cmath": "cpp",
+        "utility": "cpp"
+    }
+}
