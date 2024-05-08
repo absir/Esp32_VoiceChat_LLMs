@@ -15,8 +15,8 @@ using namespace websockets;
 #define led2 18
 #define led1 19
 const char *wifiData[][2] = {
-    {"111", "12345678"}, // 替换为自己常用的wifi名和密码
-    {"222", "12345678"},
+    {"yuanjiuyan", "88889999"}, // 替换为自己常用的wifi名和密码
+    // {"222", "12345678"},
     // 继续添加需要的 Wi-Fi 名称和密码
 };
 
@@ -61,8 +61,8 @@ DynamicJsonDocument gen_params(const char *appid, const char *domain);
 String askquestion = "";
 String Answer = "";
 
-const char *appId1 = "";  // 替换为自己的星火大模型参数
-const char *domain1 = "generalv3"; 
+const char *appId1 = ""; // 替换为自己的星火大模型参数
+const char *domain1 = "generalv3";
 const char *websockets_server = "ws://spark-api.xf-yun.com/v3.1/chat";
 const char *websockets_server1 = "ws://ws-api.xfyun.cn/v2/iat";
 using namespace websockets;
@@ -532,7 +532,7 @@ void wifiConnect(const char *wifiData[][2], int numNetworks)
     }
 }
 
-void getUrl()//鉴权
+void getUrl() // 鉴权
 {
     WiFiClient client;
     if (!client.connect("192.168.0.1", 5000)) // 自己做的鉴权的服务器，用flask，端口设为5000，可自定义

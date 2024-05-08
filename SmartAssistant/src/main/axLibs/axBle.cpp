@@ -120,6 +120,23 @@ void axBleReg(axBleCmd cmd, axBleOnCmd *onCmd)
 	axBleOnCmds[cmd] = onCmd;
 }
 
+void axBleSend(axBleCmd cmd, size_t lc, uint8_t *data)
+{
+	size_t allLc = 4 + lc;
+	uint8_t *data = new uint8_t(4 + lc);
+	data[0] = BLE_CMD_PRE;
+	data[1] = cmd;
+	data[2] = lc / 128;
+	data[3] = lc % 128;
+	if (lc > 0)
+	{
+		memcpy(data + 4, data, lc);
+	}
+
+	axBleCharacteristic->setValue(data, allLc);
+	axBleCharacteristic->notify();
+}
+
 void axBleInit(bool allowDiscover)
 {
 	if (_init < 0)
@@ -165,21 +182,4 @@ void axBleInit(bool allowDiscover)
 
 void axBleLoop()
 {
-}
-
-void axBleSend(axBleCmd cmd, size_t lc, uint8_t *data)
-{
-	size_t allLc = 4 + lc;
-	uint8_t *data = new uint8_t(4 + lc);
-	data[0] = BLE_CMD_PRE;
-	data[1] = cmd;
-	data[2] = lc / 128;
-	data[3] = lc % 128;
-	if (lc > 0)
-	{
-		memcpy(data + 4, data, lc);
-	}
-
-	axBleCharacteristic->setValue(data, allLc);
-	axBleCharacteristic->notify();
 }
