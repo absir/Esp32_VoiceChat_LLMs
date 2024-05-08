@@ -7,22 +7,14 @@
 #include <BLEServer.h>
 #include <Preferences.h>
 
-Preferences axPreferences;
+static Preferences axPreferences;
 
-bool axBleConnected = false;
-BLEServer *axBleServer;
-BLEService *axBleService;
-BLECharacteristic *axBleCharacteristic;
+static bool axBleConnected = false;
+static BLEServer *axBleServer;
+static BLEService *axBleService;
+static BLECharacteristic *axBleCharacteristic;
 
 typedef void (*axBleOnCmd)(size_t lc, uint8_t *data);
-
-typedef enum
-{
-    axBleCmdWifi,
-
-    axBleCmdCount,
-
-} axBleCmd;
 
 // 蓝牙命令回调
 void axBleReg(axBleCmd cmd, axBleOnCmd *onCmd);

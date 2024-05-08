@@ -1,16 +1,9 @@
 #include "axBle.h"
 
-#define DEVICE_NAME "YYChat"
-#define SERVICE_UUID "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
-#define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
-
 #define PRE_KEY_BLE_CONNED "ble.conned"
 
-// BLE_CMD_PRE 前缀特征码
-const uint8_t BLE_CMD_PRE = 0x7f;
-
-int _init = -1;
-bool _inited = false;
+int _axBleInit = -1;
+bool _axBleInited = false;
 
 class axServerCallbacks : public BLEServerCallbacks
 {
@@ -22,9 +15,9 @@ class axServerCallbacks : public BLEServerCallbacks
 		}
 
 		axBleConnected = true;
-		if (_init == 0)
+		if (_axBleInit == 0)
 		{
-			_init = 1;
+			_axBleInit = 1;
 			axPreferences.putBool(PRE_KEY_BLE_CONNED, true);
 		}
 	}
@@ -35,7 +28,7 @@ class axServerCallbacks : public BLEServerCallbacks
 	}
 };
 
-typedef struct axCharacteristicCallbacksBuff
+struct axCharacteristicCallbacksBuff
 {
 	// 考虑双指令缓存
 	uint8_t data[1024];
@@ -72,7 +65,7 @@ public:
 
 		while (axCbuff->dataI >= 4)
 		{
-			if (axCbuff->data[0] != BLE_CMD_PRE)
+			if (axCbuff->data[0] != AX_BLE_CMD_PRE)
 			{
 				// 过滤非指令特征
 				axCbuff->dataI--;
@@ -123,55 +116,55 @@ void axBleReg(axBleCmd cmd, axBleOnCmd *onCmd)
 void axBleSend(axBleCmd cmd, size_t lc, uint8_t *data)
 {
 	size_t allLc = 4 + lc;
-	uint8_t *data = new uint8_t(4 + lc);
-	data[0] = BLE_CMD_PRE;
-	data[1] = cmd;
-	data[2] = lc / 128;
-	data[3] = lc % 128;
+	uint8_t *allData = new uint8_t(4 + lc);
+	allData[0] = AX_BLE_CMD_PRE;
+	allData[1] = cmd;
+	allData[2] = lc / 128;
+	allData[3] = lc % 128;
 	if (lc > 0)
 	{
-		memcpy(data + 4, data, lc);
+		memcpy(allData + 4, data, lc);
 	}
 
-	axBleCharacteristic->setValue(data, allLc);
+	axBleCharacteristic->setValue(allData, allLc);
 	axBleCharacteristic->notify();
 }
 
 void axBleInit(bool allowDiscover)
 {
-	if (_init < 0)
+	if (_axBleInit < 0)
 	{
-		_init = axPreferences.getBool(PRE_KEY_BLE_CONNED) ? 1 : 0;
+		_axBleInit = axPreferences.getBool(PRE_KEY_BLE_CONNED) ? 1 : 0;
 	}
 
-	if (!allowDiscover && _init <= 0)
+	if (!allowDiscover && _axBleInit <= 0)
 	{
 		allowDiscover = true;
 	}
 
-	if (_inited)
+	if (_axBleInited)
 	{
 		BLEDevice::deinit(true);
 	}
 
 	axBleConnected = false;
-	BLEDevice::init(DEVICE_NAME);
+	BLEDevice::init(AX_BLE_DEVICE_NAME);
 	axBleServer = BLEDevice::createServer();
 	axBleServer->setCallbacks(new axServerCallbacks());
-	axBleService = axBleServer->createService(SERVICE_UUID);
+	axBleService = axBleServer->createService(AX_BLE_SERVICE_UUID);
 	uint32_t properties = BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_INDICATE;
 	if (allowDiscover)
 	{
 		properties |= BLECharacteristic::PROPERTY_BROADCAST;
 	}
 
-	axBleCharacteristic = axBleService->createCharacteristic(CHARACTERISTIC_UUID, properties);
+	axBleCharacteristic = axBleService->createCharacteristic(AX_BLE_CHARACTERISTIC_UUID, properties);
 	axBleCharacteristic->setCallbacks(new axCharacteristicCallbacks());
 
 	axBleService->start();
 
 	BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-	pAdvertising->addServiceUUID(SERVICE_UUID);
+	pAdvertising->addServiceUUID(AX_BLE_SERVICE_UUID);
 	pAdvertising->setScanResponse(allowDiscover);
 	pAdvertising->setMinPreferred(0x06); // functions that help with iPhone connections issue
 	pAdvertising->setMinPreferred(0x12);
