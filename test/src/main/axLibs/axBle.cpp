@@ -2,6 +2,12 @@
 
 #define PRE_KEY_BLE_CONNED "ble.conned"
 
+Preferences axPreferences;
+bool axBleConnected = false;
+BLEServer *axBleServer;
+BLEService *axBleService;
+BLECharacteristic *axBleCharacteristic;
+
 int _axBleInit = -1;
 bool _axBleInited = false;
 

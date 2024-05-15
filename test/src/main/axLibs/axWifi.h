@@ -4,7 +4,7 @@
 #include <WiFi.h>
 #include "axBle.h"
 
-static bool axWifiConnected = false;
+extern bool axWifiConnected;
 
 // wifi连接
 void axWifiConn(const char *ssid, const char *passwd);

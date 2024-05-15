@@ -3,11 +3,13 @@
 #define PRE_KEY_WIFI_SSID "wifi.ssid"
 #define PRE_KEY_WIFI_PASSWD "wifi.passwd"
 
-static String _ssid;
-static String _passwd;
-static wl_status_t _status = WL_NO_SHIELD;
-static unsigned long _statusCheckNext = 0;
-static unsigned long _statusReconnNext = 0;
+bool axWifiConnected = false;
+
+String _ssid;
+String _passwd;
+wl_status_t _status = WL_NO_SHIELD;
+unsigned long _statusCheckNext = 0;
+unsigned long _statusReconnNext = 0;
 
 void axWifiConnDo(const char *ssid, const char *passwd)
 {

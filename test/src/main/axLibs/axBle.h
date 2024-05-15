@@ -7,12 +7,12 @@
 #include <BLEServer.h>
 #include <Preferences.h>
 
-static Preferences axPreferences;
+extern Preferences axPreferences;
 
-static bool axBleConnected = false;
-static BLEServer *axBleServer;
-static BLEService *axBleService;
-static BLECharacteristic *axBleCharacteristic;
+extern bool axBleConnected;
+extern BLEServer *axBleServer;
+extern BLEService *axBleService;
+extern BLECharacteristic *axBleCharacteristic;
 
 typedef void (*axBleOnCmd)(size_t lc, uint8_t *data);
 

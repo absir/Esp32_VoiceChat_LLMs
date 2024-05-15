@@ -1,3 +1,6 @@
+#ifndef _AX_DEFINE
+#define _AX_DEFINE
+
 #define AX_BLE_DEVICE_NAME "YYChat"
 #define AX_BLE_SERVICE_UUID "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define AX_BLE_CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
@@ -22,10 +25,16 @@ typedef enum
 #define AX_MIC_PIN_I2S_DIN 32
 #define AX_MIC_CONTINUE_NOISE 50
 
-#define AX_I2S_DOUT 27 // DIN
-#define AX_I2S_BCLK 26 // BCLK
-#define AX_I2S_LRC 25  // LRC
+// DIN
+#define AX_I2S_DOUT 27
+// BCLK
+#define AX_I2S_BCLK 26
+// LRC
+#define AX_I2S_LRC 25
+
 #define AX_VOL_DEFAULT 10
 #define AX_VOL_MAX_STEPS 15
 #define AX_VOL_TIMEOUT_MS 500
 #define AX_VOL_TIMEOUT_SSL_MS 2700
+
+#endif
