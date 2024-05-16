@@ -7,8 +7,9 @@ bool audioPlayed = false;
 void setup()
 {
     Serial.begin(115200);
+
     // axBleInit(false);
-    
+
     axWifiInit();
     axWifiConn("yuanjiuyan", "88889999");
 
