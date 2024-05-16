@@ -10,7 +10,7 @@ const int BLOCK_SIZE = 128;
 //  -   Data bits are MSB first.
 //  -   DATA bits are left-aligned with respect to LRC edge.
 //  -   DATA bits are right-shifted by one with respect to LRC edges.
-axMic::axMic(uint32_t sampleRate, int pinBclk, int pinLrc, int pinDin)
+AxMic::AxMic(uint32_t sampleRate, int bckPin, int wsPin, int sdPin)
 {
   BITS_PER_SAMPLE = I2S_BITS_PER_SAMPLE_32BIT;
   i2s_config_t i2s_config = {
@@ -23,36 +23,41 @@ axMic::axMic(uint32_t sampleRate, int pinBclk, int pinLrc, int pinDin)
       .dma_buf_count = 16,
       .dma_buf_len = 60};
   i2s_pin_config_t pin_config;
-  pin_config.bck_io_num = pinBclk;
-  pin_config.ws_io_num = pinLrc;
+  pin_config.bck_io_num = bckPin;
+  pin_config.ws_io_num = wsPin;
   pin_config.data_out_num = I2S_PIN_NO_CHANGE;
-  pin_config.data_in_num = pinDin;
+  pin_config.data_in_num = sdPin;
   pin_config.mck_io_num = GPIO_NUM_0; // Set MCLK to GPIO0
   i2s_driver_install(I2S_NUM_0, &i2s_config, 0, NULL);
   i2s_set_pin(I2S_NUM_0, &pin_config);
   i2s_set_clk(I2S_NUM_0, sampleRate, BITS_PER_SAMPLE, I2S_CHANNEL_STEREO);
 }
 
-int axMic::read(char *data, int numData)
+int AxMic::read(char *data, int numData)
 {
   size_t bytesRead;
   i2s_read(I2S_NUM_0, (char *)data, numData, &bytesRead, portMAX_DELAY);
   return bytesRead;
 }
 
-int axMic::getBitPerSample()
+int AxMic::getBitPerSample()
 {
   return (int)BITS_PER_SAMPLE;
 }
 
-void axMic::clear()
+void AxMic::clear()
 {
   i2s_zero_dma_buffer(I2S_NUM_0);
 }
 
-int axMic::recordLeft(char *data, int numData)
+int AxMic::recordLeft(char *data, int numData)
 {
   numData = read(data, numData);
+  if (numData <= 0)
+  {
+    return numData;
+  }
+
   int numLeft = numData / 8;
   for (int i = 0; i < numLeft; ++i)
   {
@@ -64,19 +69,30 @@ int axMic::recordLeft(char *data, int numData)
 }
 
 // 连续录音
-int axMic::recordContiue(int *conLen, char *data, int dataLen, int numStep, bool left, int *silence, int noise)
+int AxMic::recordContiue(int *conLen, bool conAppend, char *data, int dataLen, int numStep, bool left, int *silence, int noise)
 {
   if (silence != nullptr && *silence == 0)
   {
     return -1;
   }
 
-  if ((*conLen + numStep) > dataLen)
+  if (conAppend)
   {
-    return -1;
+    if ((*conLen + numStep) > dataLen)
+    {
+      return -1;
+    }
+
+    data = data + *conLen;
+  }
+  else
+  {
+    if (*conLen >= dataLen)
+    {
+      return -1;
+    }
   }
 
-  data = data + *conLen;
   numStep = left ? recordLeft(data, numStep) : read(data, numStep);
   if (silence != nullptr && *silence > 0)
   {
@@ -86,12 +102,22 @@ int axMic::recordContiue(int *conLen, char *data, int dataLen, int numStep, bool
     }
   }
 
+  if (numStep <= 0)
+  {
+    return -1;
+  }
+
   *conLen += numStep;
   return numStep;
 }
 
-float axMic::calculateRMS(char *data, int dataSize)
+float AxMic::calculateRMS(char *data, int dataSize)
 {
+  if (dataSize <= 0)
+  {
+    return 0;
+  }
+
   float sum = 0;
   int16_t sample;
 

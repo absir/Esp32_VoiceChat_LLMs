@@ -12,12 +12,12 @@ enum MicType
   M5STACKFIRE
 };
 
-class axMic
+class AxMic
 {
   i2s_bits_per_sample_t BITS_PER_SAMPLE;
 
 public:
-  axMic(uint32_t sampleRate, int pinBclk, int pinLrc, int pinDin);
+  AxMic(uint32_t sampleRate, int pinBclk, int pinLrc, int pinDin);
   int read(char *data, int numData);
   int getBitPerSample();
   void clear();
@@ -26,7 +26,7 @@ public:
   int recordLeft(char *data, int numData);
 
   // 连续录音
-  int recordContiue(int *conLen, char *data, int dataLen, int numStep, bool left, int *silence, int noise);
+  int recordContiue(int *conLen, bool conAppend, char *data, int dataLen, int numStep, bool left, int *silence, int noise);
 
   static float calculateRMS(char *data, int dataSize);
 };

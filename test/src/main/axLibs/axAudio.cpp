@@ -13,7 +13,7 @@ void axAudioInit()
     }
 
     axAudio = &audio;
-    axAudio->setPinout(AX_I2S_BCLK, AX_I2S_LRC, AX_I2S_DOUT);
+    axAudio->setPinout(AX_AUDIO_BCLK, AX_AUDIO_LRC, AX_AUDIO_DOUT);
     axAudio->setVolume(axPreferences.getInt(PRE_KEY_VOLUME, AX_VOL_DEFAULT));
     axAudio->setConnectionTimeout(AX_VOL_TIMEOUT_MS, AX_VOL_TIMEOUT_SSL_MS);
 }
