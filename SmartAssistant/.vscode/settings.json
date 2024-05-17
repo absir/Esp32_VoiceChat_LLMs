@@ -12,6 +12,11 @@
         "cmath": "cpp",
         "utility": "cpp",
         "*.tcc": "cpp",
-        "vector": "cpp"
+        "vector": "cpp",
+        "random": "cpp",
+        "deque": "cpp",
+        "unordered_map": "cpp",
+        "unordered_set": "cpp",
+        "system_error": "cpp"
     }
 }

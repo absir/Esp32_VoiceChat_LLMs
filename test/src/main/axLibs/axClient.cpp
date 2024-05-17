@@ -8,6 +8,8 @@ int AxClient::chunkedConn(const char *type)
         return returnError(HTTPC_ERROR_CONNECTION_REFUSED);
     }
 
+    addHeader("Connection", "Keep-Alive");
+    addHeader("Transfer-Encoding", "chunked");
     // send Header
     if (!sendHeader(type))
     {
@@ -19,14 +21,48 @@ int AxClient::chunkedConn(const char *type)
 
 int AxClient::chunkedSend(char *buff, size_t buffLen, int retry)
 {
-    if (!connect())
+    // chunkedSize计算
+    size_t buffLenZ = 0;
+    size_t buffLenX = buffLen;
+    while (buffLenX > 0)
     {
-        return returnError(HTTPC_ERROR_CONNECTION_REFUSED);
+        buffLenZ++;
+        buffLenX = buffLenX / 16;
     }
 
+    // 数据格式
+    memcpy(buff + buffLenZ + 2, buff, buffLen);
+    sprintf(buff, "%zx\r", buffLen);
+    buff[buffLenZ + 2] = 0;
+    Serial.println("chunkedSend " + String(buff) + ", " + buffLen);
+    buff[buffLenZ + 2] = '\n';
+    buffLen = buffLen + buffLenZ + 4;
+    buff[buffLen - 2] = '\r';
+    buff[buffLen - 1] = '\n';
+
+    // 数据写入
+    return chunkedWrite(buff, buffLen, retry);
+}
+
+int AxClient::chunkedWrite(char *buff, size_t buffLen, int retry)
+{
     size_t bytesLeft = buffLen;
     for (int i = 0; i < retry; i++)
     {
+        if (!connect())
+        {
+            return returnError(HTTPC_ERROR_CONNECTION_REFUSED);
+        }
+
+        // check for write error
+        if (i > 0 && _client->getWriteError())
+        {
+            log_d("stream write error %d", _client->getWriteError());
+
+            // reset write error for retry
+            _client->clearWriteError();
+        }
+
         int bytesWrite = _client->write((const uint8_t *)buff, bytesLeft);
         if (bytesWrite >= bytesLeft)
         {
@@ -35,14 +71,6 @@ int AxClient::chunkedSend(char *buff, size_t buffLen, int retry)
         }
 
         log_d("short write, asked for %d but got %d retry...", bytesLeft, bytesWrite);
-        // check for write error
-        if (_client->getWriteError())
-        {
-            log_d("stream write error %d", _client->getWriteError());
-
-            // reset write error for retry
-            _client->clearWriteError();
-        }
 
         buff += bytesWrite;
         bytesLeft -= bytesWrite;
@@ -55,11 +83,19 @@ int AxClient::chunkedSend(char *buff, size_t buffLen, int retry)
         return returnError(HTTPC_ERROR_SEND_PAYLOAD_FAILED);
     }
 
+    // check for write error
+    if (_client->getWriteError())
+    {
+        log_d("stream write error %d", _client->getWriteError());
+        return returnError(HTTPC_ERROR_SEND_PAYLOAD_FAILED);
+    }
+
     delay(0);
     return 0;
 }
 
 int AxClient::chunkedRespone()
 {
+    chunkedWrite("0\r\n\r\n", 5, 2);
     return returnError(handleHeaderResponse());
 }

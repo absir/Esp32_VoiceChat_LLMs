@@ -64,30 +64,49 @@ int axMic::recordLeft(char *data, int numData)
 }
 
 // 连续录音
-int axMic::recordContiue(int *conLen, char *data, int numStep, bool left)
+int axMic::recordContiue(int *conLen, char *data, int dataLen, int numStep, bool left, int *silence, int noise)
 {
-  numStep = left ? read(data + *conLen, numStep) : read(data + *conLen, numStep);
+  if (silence != nullptr && *silence == 0)
+  {
+    return -1;
+  }
+
+  if ((*conLen + numStep) > dataLen)
+  {
+    return -1;
+  }
+
+  data = data + *conLen;
+  numStep = left ? recordLeft(data, numStep) : read(data, numStep);
+  if (silence != nullptr && *silence > 0)
+  {
+    if (calculateRMS(data, numStep) <= noise)
+    {
+      *silence--;
+    }
+  }
+
   *conLen += numStep;
   return numStep;
 }
 
-float axMic::calculateRMS(uint8_t *buffer, int bufferSize)
+float axMic::calculateRMS(char *data, int dataSize)
 {
   float sum = 0;
   int16_t sample;
 
   // 每次迭代处理两个字节（16位）
-  for (int i = 0; i < bufferSize; i += 2)
+  for (int i = 0; i < dataSize; i += 2)
   {
     // 从缓冲区中获取16位样本，考虑到字节顺序
-    sample = (buffer[i + 1] << 8) | buffer[i];
+    sample = (data[i + 1] << 8) | data[i];
 
     // 计算样本的平方并累加
     sum += sample * sample;
   }
 
   // 计算平均值
-  sum /= (bufferSize / 2);
+  sum /= (dataSize / 2);
 
   // 返回RMS值
   return sqrt(sum);

@@ -20,3 +20,4 @@ typedef enum
 #define AX_MIC_PIN_I2S_BCLK 14
 #define AX_MIC_PIN_I2S_LRC 15
 #define AX_MIC_PIN_I2S_DIN 32
+#define AX_MIC_CONTINUE_NOISE 50

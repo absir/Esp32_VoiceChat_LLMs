@@ -4,6 +4,7 @@
 #include "./axLibs/axMic.h"
 #include "./axLibs/axClient.h"
 #include <HTTPClient.h>
+#include <ArduinoJson.h>
 
 // 定义配置
 // 信号灯
@@ -25,21 +26,25 @@ enum MainStatus
 
 uint32_t loopDelay = 0;
 MainStatus status;
-int micState = 0;
-int axMicConLen = 0;
-int axMicSilence = 0;
-
 bool audioPlayed = false;
 
 // 麦克风
 AxMic axMic(AX_MIC_SAMPLE_RATE, AX_MIC_BCK, AX_MIC_WS, AX_MIC_SD);
 #define axMicBuffLen 512000
-#define axMicBuffStep 5120
-char axMicBuff[axMicBuffStep];
+#define axMicBuffStep 1280
+#define axMicSilenceMax 6
+char axMicBuff[axMicBuffStep + 8];
+int micState = 0;
+int axMicConLen = 0;
+int axMicSilence = 0;
 
 // http请求
 AxClient axHttp;
-#define axSpokenUrl "http://vHuman.dev.yiyiny.com/S/spoken/1"
+// http://192.168.36.10:8787/S/spoken/1
+//
+#define axSpokenUrl "http://192.168.36.10:8787/S/spoken/4"
+// json解析
+DynamicJsonDocument jsonDoc(4096);
 
 void setup()
 {
@@ -64,7 +69,7 @@ void micStart()
     Serial.println("micStart");
     micState = 1;
     axMicConLen = 0;
-    axMicSilence = 6;
+    axMicSilence = 0;
     // 高亮
     digitalWrite(ledPin, HIGH);
     // 停止播放
@@ -72,6 +77,8 @@ void micStart()
     {
         axAudio->stopSong();
     }
+    // 录音清理
+    axMic.clear();
 }
 
 void micEnd(bool cancel)
@@ -83,21 +90,28 @@ void micEnd(bool cancel)
     if (axMicConLen != 0)
     {
         // 有录音数据|请求
-        if (cancel || axMicConLen < 0)
+        if (cancel || axMicConLen < 1024)
         {
             axHttp.end();
         }
         else
         {
+            axHttp.setTimeout(30000);
             int repErr = axHttp.chunkedRespone();
-            if (repErr != 0)
+            if (repErr != 0 && repErr != 200)
             {
-                Serial.println("axMic chunkedRespone err " + String(repErr));
+                Serial.println("micEnd chunkedRespone err " + String(repErr));
             }
             else
             {
                 String response = axHttp.getString();
-                Serial.println("HTTP Response: " + response);
+                Serial.println("micEnd Response: " + response);
+                deserializeJson(jsonDoc, response);
+                const char *tUrl = jsonDoc["tUrl"];
+                if (tUrl)
+                {
+                    axAudio->connecttohost(tUrl);
+                }
             }
 
             axHttp.end();
@@ -129,13 +143,13 @@ void loop()
         {
             micStart();
             // 一直按着录音
-            // micState = 2;
+            micState = 2;
         }
 
         Serial.println("recordContiue, " + String(axMicConLen) + ", " + String(axMicSilence));
         loopDelay = 0;
         bool axMicConFirst = axMicConLen == 0;
-        int recordLen = axMic.recordContiue(&axMicConLen, false, axMicBuff, axMicBuffLen, axMicBuffStep, true, &axMicSilence, AX_MIC_CONTINUE_NOISE);
+        int recordLen = axMic.recordContiue(&axMicConLen, false, axMicBuff, axMicBuffLen, axMicBuffStep, micState == 2 ? nullptr : &axMicSilence, axMicSilenceMax, AX_MIC_CONTINUE_RMS_MIN);
         if (recordLen <= 0)
         {
             micState = 3;
@@ -145,11 +159,13 @@ void loop()
             if (axMicConFirst)
             {
                 axHttp.begin(axSpokenUrl);
+                // 设置连接超时时间为10秒
+                axHttp.setConnectTimeout(10000);
                 axHttp.addHeader("Content-Type", "application/octet-stream");
-                // axHttp.handleHeaderResponse();
                 axHttp.chunkedConn("POST");
             }
 
+            Serial.println("calculateRMS =" + String(AxMic::calculateRMS(axMicBuff, recordLen)) + ", " + axMicSilence + ", " + axMicConLen);
             // 发送HTTP POST请求并上传数据
             int sendErr = axHttp.chunkedSend(axMicBuff, recordLen);
             if (sendErr != 0)
@@ -191,6 +207,7 @@ void loop()
             digitalWrite(ledPin, HIGH);
         }
 
+        loopDelay = 0;
         return;
     }
 

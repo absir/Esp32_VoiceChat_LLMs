@@ -14,19 +14,13 @@ enum MicType
 
 class AxMic
 {
-  i2s_bits_per_sample_t BITS_PER_SAMPLE;
-
 public:
   AxMic(uint32_t sampleRate, int pinBclk, int pinLrc, int pinDin);
-  int read(char *data, int numData);
-  int getBitPerSample();
   void clear();
 
-  // data 修正直取左声道, 返回data numLeft长度
-  int recordLeft(char *data, int numData);
-
+  int read(char *data, int numData);
   // 连续录音
-  int recordContiue(int *conLen, bool conAppend, char *data, int dataLen, int numStep, bool left, int *silence, int noise);
+  int recordContiue(int *conLen, bool conAppend, char *data, int dataLen, int numStep, int *silence, int silenceMax, int rmsMin);
 
   static float calculateRMS(char *data, int dataSize);
 };

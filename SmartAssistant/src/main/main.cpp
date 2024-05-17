@@ -38,9 +38,9 @@ uint8_t adc_complete_flag = 0;
 Audio1 audio1;
 Audio2 audio2(false, 3, I2S_NUM_1);
 
-#define I2S_DOUT 25 // DIN
-#define I2S_BCLK 27 // BCLK
-#define I2S_LRC 26  // LRC
+#define I2S_DOUT 27 // DIN
+#define I2S_BCLK 26 // BCLK
+#define I2S_LRC 25  // LRC
 
 void gain_token(void);
 void getText(String role, String content);
@@ -497,6 +497,21 @@ void voicePlay()
 void wifiConnect(const char *wifiData[][2], int numNetworks)
 {
     WiFi.disconnect(true);
+
+    if (true)
+    {
+        // 初始化 WiFi 模块
+        WiFi.begin();
+        // 扫描可用的 WiFi 网络
+        int numNetworks = WiFi.scanNetworks(true, 10000);
+
+        Serial.println("Available networks:" + String(numNetworks) + " " + String(WiFi.RSSI()));
+        for (int i = 0; i < numNetworks; i++)
+        {
+            Serial.println(WiFi.SSID(i));
+        }
+    }
+
     for (int i = 0; i < numNetworks; ++i)
     {
         const char *ssid = wifiData[i][0];
@@ -619,11 +634,15 @@ void setup()
     pinMode(led3, OUTPUT);
     audio1.init();
 
+    WiFi.mode(WIFI_STA);
+
+    WiFi.setMinSecurity(WIFI_AUTH_WPA_PSK);
+
     int numNetworks = sizeof(wifiData) / sizeof(wifiData[0]);
     wifiConnect(wifiData, numNetworks);
 
     audio2.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
-    audio2.setVolume(50);
+    audio2.setVolume(10);
     // gain_token();
     getUrl();
     urlTime = millis();
@@ -634,13 +653,8 @@ void setup()
 void loop()
 {
 
-    webSocketClient.poll();
-    webSocketClient1.poll();
-    // delay(10);
-    if (startPlay)
-    {
-        voicePlay();
-    }
+    delay(10);
+
     audio2.loop();
     if (audio2.isplaying == 1)
     {
@@ -649,63 +663,96 @@ void loop()
     else
     {
         digitalWrite(led3, LOW);
-        if ((urlTime + 240000 < millis()) && (audio2.isplaying == 0))
+        if ((urlTime + 30000 < millis()) && (audio2.isplaying == 0))
         {
+            if (WiFi.status() != WL_CONNECTED)
+            {
+                wifiConnect(wifiData, sizeof(wifiData) / sizeof(wifiData[0]));
+            }
+
+            Serial.println("connecttospeech at " + String(WiFi.status()));
+
             urlTime = millis();
-            getUrl();
+            // getUrl();
+            // audio2.connecttospeech("启动中, 你好， 很高心...", "zh");
+            // audio2.connecttohost("https://p2.dev.yiyiny.com/a/222.wav");
+            audio2.connecttohost("https://p2.dev.yiyiny.com/a/tts.mp3");
+            
         }
     }
 
-    if (digitalRead(35) == 0)
-    {
-        if (millis() > pushTime + 200)
-        {
-            pushTime = millis();
-            noise += 10;
-            Serial.print("noise:");
-            Serial.println(noise);
-        }
-    }
-    if (digitalRead(34) == 0)
-    {
-        if (millis() > pushTime + 200)
-        {
-            pushTime = millis();
-            noise -= 10;
-            Serial.print("noise:");
-            Serial.println(noise);
-        }
-    }
-    if (digitalRead(key) == 0)
-    {
-        audio2.isplaying = 0;
-        startPlay = false;
-        Answer = "";
-        Serial.printf("Start recognition\r\n\r\n");
+    // webSocketClient.poll();
+    // webSocketClient1.poll();
+    // // delay(10);
+    // if (startPlay)
+    // {
+    //     voicePlay();
+    // }
+    // audio2.loop();
+    // if (audio2.isplaying == 1)
+    // {
+    //     digitalWrite(led3, HIGH);
+    // }
+    // else
+    // {
+    //     digitalWrite(led3, LOW);
+    //     if ((urlTime + 240000 < millis()) && (audio2.isplaying == 0))
+    //     {
+    //         urlTime = millis();
+    //         getUrl();
+    //     }
+    // }
 
-        adc_start_flag = 1;
-        // timerStart(timer);
-        Serial.println(esp_get_free_heap_size());
+    // if (digitalRead(35) == 0)
+    // {
+    //     if (millis() > pushTime + 200)
+    //     {
+    //         pushTime = millis();
+    //         noise += 10;
+    //         Serial.print("noise:");
+    //         Serial.println(noise);
+    //     }
+    // }
+    // if (digitalRead(34) == 0)
+    // {
+    //     if (millis() > pushTime + 200)
+    //     {
+    //         pushTime = millis();
+    //         noise -= 10;
+    //         Serial.print("noise:");
+    //         Serial.println(noise);
+    //     }
+    // }
+    // if (digitalRead(key) == 0)
+    // {
+    //     audio2.isplaying = 0;
+    //     startPlay = false;
+    //     Answer = "";
+    //     Serial.printf("Start recognition\r\n\r\n");
 
-        // audio1.clear();
+    //     adc_start_flag = 1;
+    //     // timerStart(timer);
+    //     Serial.println(esp_get_free_heap_size());
 
-        // audio.init(ADMP441);
-        if (urlTime + 240000 < millis()) // 超过4分钟，重新做一次鉴权
-        {
-            urlTime = millis();
-            getUrl();
-        }
-        askquestion = "";
-        // audio2.connecttospeech(askquestion.c_str(), "zh");
-        ConnServer1();
-        // ConnServer();
-        // delay(6000);
-        // audio1.Record();
-        adc_complete_flag = 0;
+    //     // audio1.clear();
 
-        // Serial.println(text);
-        // checkLen(text);
-    }
+    //     // audio.init(ADMP441);
+    //     if (urlTime + 240000 < millis()) // 超过4分钟，重新做一次鉴权
+    //     {
+    //         urlTime = millis();
+    //         getUrl();
+    //     }
+    //     askquestion = "";
+    //     // audio2.connecttospeech(askquestion.c_str(), "zh");
+    //     ConnServer1();
+    //     // ConnServer();
+    //     // delay(6000);
+    //     // audio1.Record();
+    //     adc_complete_flag = 0;
+
+    //     // Serial.println(text);
+    //     // checkLen(text);
+    // }
 }
 
 void getText(String role, String content)

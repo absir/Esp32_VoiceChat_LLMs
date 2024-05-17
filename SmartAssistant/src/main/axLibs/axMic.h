@@ -28,9 +28,9 @@ public:
   int recordLeft(char *data, int numData);
 
   // 连续录音
-  int recordContiue(int *conLen, char *data, int numStep, bool left);
+  int recordContiue(int *conLen, char *data, int dataLen, int numStep, bool left, int *silence, int noise);
 
-  static float calculateRMS(uint8_t *buffer, int bufferSize);
+  static float calculateRMS(char *data, int dataSize);
 };
 
-#endif // _I2S_H
+#endif
