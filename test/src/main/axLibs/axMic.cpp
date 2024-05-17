@@ -12,17 +12,16 @@ const int BLOCK_SIZE = 128;
 //  -   DATA bits are right-shifted by one with respect to LRC edges.
 AxMic::AxMic(uint32_t sampleRate, int bckPin, int wsPin, int sdPin)
 {
-  i2s_bits_per_sample_t bitsPreSample = I2S_BITS_PER_SAMPLE_16BIT;
+  i2s_bits_per_sample_t bitsPreSample = I2S_BITS_PER_SAMPLE_32BIT;
   i2s_config_t i2s_config = {
       .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX), // 接收模式
       .sample_rate = sampleRate,
       .bits_per_sample = bitsPreSample,
-      .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT, // 单声道
+      .channel_format = I2S_CHANNEL_FMT_ONLY_RIGHT, // 单声道
       .communication_format = (i2s_comm_format_t)(I2S_COMM_FORMAT_STAND_I2S | I2S_COMM_FORMAT_STAND_MSB),
       .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
       .dma_buf_count = 8,
-      .dma_buf_len = 64};
-  i2s_driver_install(I2S_NUM_0, &i2s_config, 0, NULL);
+      .dma_buf_len = 128};
 
   i2s_pin_config_t pin_config;
   pin_config.bck_io_num = bckPin;
@@ -30,15 +29,28 @@ AxMic::AxMic(uint32_t sampleRate, int bckPin, int wsPin, int sdPin)
   pin_config.data_out_num = I2S_PIN_NO_CHANGE;
   pin_config.data_in_num = sdPin;
   pin_config.mck_io_num = GPIO_NUM_0; // Set MCLK to GPIO0
-  i2s_set_pin(I2S_NUM_0, &pin_config);
 
-  // i2s_set_clk(I2S_NUM_0, sampleRate, bitsPreSample, I2S_CHANNEL_MONO);
+  i2s_driver_install(I2S_NUM_0, &i2s_config, 0, NULL);
+  i2s_set_pin(I2S_NUM_0, &pin_config);
+  i2s_set_clk(I2S_NUM_0, sampleRate, bitsPreSample, I2S_CHANNEL_MONO);
 }
 
 int AxMic::read(char *data, int numData)
 {
   size_t bytesRead;
   i2s_read(I2S_NUM_0, (char *)data, numData, &bytesRead, portMAX_DELAY);
+  if (bytesRead > 0)
+  {
+    numData = bytesRead / 4;
+    for (int i = 0; i < numData; ++i)
+    {
+      data[2 * i] = data[4 * i + 2];
+      data[2 * i + 1] = data[4 * i + 3];
+    }
+
+    return numData * 2;
+  }
+
   return bytesRead;
 }
 

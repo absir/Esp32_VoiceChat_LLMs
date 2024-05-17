@@ -31,9 +31,9 @@ bool audioPlayed = false;
 // 麦克风
 AxMic axMic(AX_MIC_SAMPLE_RATE, AX_MIC_BCK, AX_MIC_WS, AX_MIC_SD);
 #define axMicBuffLen 512000
-#define axMicBuffStep 1280
+#define axMicBuffStep 5120
 #define axMicSilenceMax 6
-char axMicBuff[axMicBuffStep + 8];
+char axMicBuff[axMicBuffStep + 16];
 int micState = 0;
 int axMicConLen = 0;
 int axMicSilence = 0;

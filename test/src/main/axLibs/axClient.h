@@ -11,7 +11,7 @@ public:
     int chunkedRespone();
 
 protected:
-    int chunkedWrite(char *buff, size_t buffLen, int retry);
+    int chunkedWrite(const char *buff, size_t buffLen, int retry);
 };
 
 #endif
