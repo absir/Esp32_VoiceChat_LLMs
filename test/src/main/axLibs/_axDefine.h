@@ -33,7 +33,7 @@ typedef enum
 #define AX_MIC_SAMPLE_RATE 8000
 #define AX_MIC_BCK 17
 #define AX_MIC_WS 16
-#define AX_MIC_SD 32
+#define AX_MIC_SD 15
 #define AX_MIC_CONTINUE_RMS_MIN 50
 
 #endif

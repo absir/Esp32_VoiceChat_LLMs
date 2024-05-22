@@ -2,7 +2,6 @@
 #define AX_MIC_H
 #include <Arduino.h>
 #include "driver/i2s.h"
-#include "esp_system.h"
 
 enum MicType
 {
@@ -14,8 +13,15 @@ enum MicType
 
 class AxMic
 {
+protected:
+  i2s_port_t _i2sPort;
+
 public:
-  AxMic(uint32_t sampleRate, int pinBclk, int pinLrc, int pinDin);
+  AxMic(uint32_t sampleRate, int pinBclk, int pinLrc, int pinDin, i2s_port_t i2sPort = I2S_NUM_0);
+  i2s_port_t i2sPort()
+  {
+    return _i2sPort;
+  };
   void clear();
 
   int read(char *data, int numData);

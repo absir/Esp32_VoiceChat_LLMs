@@ -1,8 +1,5 @@
 #include "axMic.h"
-// #define PIN_I2S_DOUT 25
 
-const i2s_port_t I2S_PORT = I2S_NUM_0;
-const int BLOCK_SIZE = 128;
 // This I2S specification :
 //  -   LRC high is channel 2 (right).
 //  -   LRC signal transitions once each word.
@@ -10,45 +7,67 @@ const int BLOCK_SIZE = 128;
 //  -   Data bits are MSB first.
 //  -   DATA bits are left-aligned with respect to LRC edge.
 //  -   DATA bits are right-shifted by one with respect to LRC edges.
-AxMic::AxMic(uint32_t sampleRate, int bckPin, int wsPin, int sdPin)
+AxMic::AxMic(uint32_t sampleRate, int bckPin, int wsPin, int sdPin, i2s_port_t i2sPort)
 {
+  _i2sPort = i2sPort;
   i2s_bits_per_sample_t bitsPreSample = I2S_BITS_PER_SAMPLE_32BIT;
   i2s_config_t i2s_config = {
       .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX), // 接收模式
       .sample_rate = sampleRate,
       .bits_per_sample = bitsPreSample,
-      .channel_format = I2S_CHANNEL_FMT_ONLY_RIGHT, // 单声道
-      .communication_format = (i2s_comm_format_t)(I2S_COMM_FORMAT_STAND_I2S | I2S_COMM_FORMAT_STAND_MSB),
+      .channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT,                                                     // 单声道 I2S_CHANNEL_FMT_ONLY_RIGHT
+      .communication_format = i2s_comm_format_t(I2S_COMM_FORMAT_STAND_I2S | I2S_COMM_FORMAT_STAND_MSB), // i2s_comm_format_t(I2S_COMM_FORMAT_STAND_I2S | I2S_COMM_FORMAT_STAND_MSB)
       .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
-      .dma_buf_count = 8,
-      .dma_buf_len = 128};
+      .dma_buf_count = 16,
+      .dma_buf_len = 60,
+      // .use_apll = false,
+      // .tx_desc_auto_clear = false,
+      // .fixed_mclk = 0
+  };
 
-  i2s_pin_config_t pin_config;
-  pin_config.bck_io_num = bckPin;
-  pin_config.ws_io_num = wsPin;
-  pin_config.data_out_num = I2S_PIN_NO_CHANGE;
-  pin_config.data_in_num = sdPin;
-  pin_config.mck_io_num = GPIO_NUM_0; // Set MCLK to GPIO0
+  i2s_pin_config_t pin_config = {
+      .bck_io_num = bckPin,              // BCKL
+      .ws_io_num = wsPin,                // LRCL
+      .data_out_num = I2S_PIN_NO_CHANGE, // not used (only for speakers)
+      .data_in_num = sdPin               // DOUT
+  };
 
-  i2s_driver_install(I2S_NUM_0, &i2s_config, 0, NULL);
-  i2s_set_pin(I2S_NUM_0, &pin_config);
-  i2s_set_clk(I2S_NUM_0, sampleRate, bitsPreSample, I2S_CHANNEL_MONO);
+  esp_err_t err;
+
+  err = i2s_driver_install(i2sPort, &i2s_config, 0, NULL);
+  if (err != ESP_OK)
+  {
+    Serial.printf("AxMic Failed installing driver: %d\n", err);
+  }
+
+  err = i2s_set_pin(i2sPort, &pin_config);
+  if (err != ESP_OK)
+  {
+    Serial.printf("AxMic Failed setting pin: %d\n", err);
+  }
+
+  Serial.println("AxMic I2S driver installed.");
+  i2s_set_clk(i2sPort, i2s_config.sample_rate, i2s_config.bits_per_chan, I2S_CHANNEL_STEREO);
 }
 
 int AxMic::read(char *data, int numData)
 {
-  size_t bytesRead;
-  i2s_read(I2S_NUM_0, (char *)data, numData, &bytesRead, portMAX_DELAY);
+  size_t bytesRead = 0;
+  i2s_read(this->_i2sPort, data, numData, &bytesRead, portMAX_DELAY);
   if (bytesRead > 0)
   {
-    numData = bytesRead / 4;
-    for (int i = 0; i < numData; ++i)
+    numData = bytesRead / 8;
+    int32_t *data32 = (int32_t *)data;
+    int16_t *data16 = (int16_t *)data;
+    for (size_t i = 0; i < numData; i++)
     {
-      data[2 * i] = data[4 * i + 2];
-      data[2 * i + 1] = data[4 * i + 3];
+      data16[i] = int16_t((data32[i * 2 + 1] & 0xFFFFFFF0) >> 11);
+      // Serial.println(String(data32i) + ", " + String(data16i) + ", " + String(data32[i + 1]));
     }
 
-    return numData * 2;
+    bytesRead = numData * 2;
+    Serial.println("read " + String((int8_t)data[0]) + ", " + String((int8_t)data[bytesRead - 1]));
+    return bytesRead;
   }
 
   return bytesRead;
@@ -56,7 +75,7 @@ int AxMic::read(char *data, int numData)
 
 void AxMic::clear()
 {
-  i2s_zero_dma_buffer(I2S_NUM_0);
+  i2s_zero_dma_buffer(this->_i2sPort);
 }
 
 // 连续录音

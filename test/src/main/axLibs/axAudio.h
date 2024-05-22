@@ -2,7 +2,7 @@
 #define AX_AUDIO_H
 
 #include "axBle.h"
-#include <audio.h>
+#include "audio/Audio.h"
 
 extern Audio *axAudio;
 

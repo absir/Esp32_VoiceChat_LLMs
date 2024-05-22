@@ -29,7 +29,7 @@ MainStatus status;
 bool audioPlayed = false;
 
 // 麦克风
-AxMic axMic(AX_MIC_SAMPLE_RATE, AX_MIC_BCK, AX_MIC_WS, AX_MIC_SD);
+AxMic axMic(AX_MIC_SAMPLE_RATE, AX_MIC_BCK, AX_MIC_WS, AX_MIC_SD, I2S_NUM_1);
 #define axMicBuffLen 512000
 #define axMicBuffStep 5120
 #define axMicSilenceMax 6
@@ -136,6 +136,7 @@ void loop()
     }
 
     // MIC
+
     bool micOpen = digitalRead(micPin) == LOW;
     if ((micOpen && micState < 3) || micState == 1)
     {
@@ -175,8 +176,6 @@ void loop()
                 micState = 3;
             }
         }
-
-        return;
     }
     else if (micState == 4)
     {
