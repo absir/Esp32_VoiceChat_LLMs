@@ -14,6 +14,7 @@ enum MicType
 class AxMic
 {
 protected:
+  int _sampleRate;
   i2s_port_t _i2sPort;
 
 public:

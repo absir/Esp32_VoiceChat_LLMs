@@ -2,7 +2,7 @@
 
 #define PRE_KEY_VOLUME "ble.conned"
 
-Audio audio(false, 3, I2S_NUM_0);
+Audio audio(false, 3, I2S_NUM_1);
 Audio *axAudio = nullptr;
 
 void axAudioInit()

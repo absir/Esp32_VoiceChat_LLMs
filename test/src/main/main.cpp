@@ -1,4 +1,4 @@
-#include "./axLibs/axBle.h"
+// #include "./axLibs/axBle.h"
 #include "./axLibs/axWifi.h"
 #include "./axLibs/axAudio.h"
 #include "./axLibs/axMic.h"
@@ -29,7 +29,7 @@ MainStatus status;
 bool audioPlayed = false;
 
 // 麦克风
-AxMic axMic(AX_MIC_SAMPLE_RATE, AX_MIC_BCK, AX_MIC_WS, AX_MIC_SD, I2S_NUM_1);
+AxMic axMic(AX_MIC_SAMPLE_RATE, AX_MIC_BCLK, AX_MIC_LRC, AX_MIC_DIN);
 #define axMicBuffLen 512000
 #define axMicBuffStep 5120
 #define axMicSilenceMax 6
@@ -136,7 +136,6 @@ void loop()
     }
 
     // MIC
-
     bool micOpen = digitalRead(micPin) == LOW;
     if ((micOpen && micState < 3) || micState == 1)
     {
@@ -166,7 +165,7 @@ void loop()
                 axHttp.chunkedConn("POST");
             }
 
-            Serial.println("calculateRMS =" + String(AxMic::calculateRMS(axMicBuff, recordLen)) + ", " + axMicSilence + ", " + axMicConLen);
+            // Serial.println("calculateRMS =" + String(AxMic::calculateRMS(axMicBuff, recordLen)) + ", " + axMicSilence + ", " + axMicConLen);
             // 发送HTTP POST请求并上传数据
             int sendErr = axHttp.chunkedSend(axMicBuff, recordLen);
             if (sendErr != 0)
