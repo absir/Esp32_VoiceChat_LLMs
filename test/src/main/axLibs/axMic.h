@@ -18,12 +18,14 @@ protected:
   i2s_port_t _i2sPort;
 
 public:
-  AxMic(uint32_t sampleRate, int pinBclk, int pinLrc, int pinDin, i2s_port_t i2sPort = I2S_NUM_0);
+  AxMic(uint32_t sampleRate, int pinBck, int pinWs, int pinIn, i2s_port_t i2sPort = I2S_NUM_0);
   i2s_port_t i2sPort()
   {
     return _i2sPort;
   };
   void clear();
+  void start();
+  void stop();
 
   int read(char *data, int numData);
   // 连续录音

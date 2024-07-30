@@ -29,7 +29,7 @@ MainStatus status;
 bool audioPlayed = false;
 
 // 麦克风
-AxMic axMic(AX_MIC_SAMPLE_RATE, AX_MIC_BCLK, AX_MIC_LRC, AX_MIC_DIN);
+AxMic axMic(AX_MIC_SAMPLE_RATE, AX_MIC_BCLK_SEL_SCK, AX_MIC_LRC_WS, AX_MIC_DOUT_SD_IN);
 #define axMicBuffLen 512000
 #define axMicBuffStep 5120
 #define axMicSilenceMax 6

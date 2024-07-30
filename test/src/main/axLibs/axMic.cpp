@@ -7,23 +7,26 @@
 //  -   Data bits are MSB first.
 //  -   DATA bits are left-aligned with respect to LRC edge.
 //  -   DATA bits are right-shifted by one with respect to LRC edges.
-AxMic::AxMic(uint32_t sampleRate, int pinBclk, int pinLrc, int pinDin, i2s_port_t i2sPort)
+AxMic::AxMic(uint32_t sampleRate, int pinBck, int pinWs, int pinIn, i2s_port_t i2sPort)
 {
+  // sampleRate = 44100;
+  i2s_bits_per_sample_t bitsPreSample = I2S_BITS_PER_SAMPLE_32BIT;
   _sampleRate = sampleRate;
   _i2sPort = i2sPort;
-  i2s_bits_per_sample_t bitsPreSample = I2S_BITS_PER_SAMPLE_32BIT;
   i2s_config_t i2s_config = {
       .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX), // 接收模式
       .sample_rate = sampleRate,
       .bits_per_sample = bitsPreSample,
-      .channel_format = I2S_CHANNEL_FMT_ONLY_RIGHT,                                                     // 单声道 I2S_CHANNEL_FMT_ONLY_RIGHT
+      .channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT,                                                     // 单声道 I2S_CHANNEL_FMT_ONLY_RIGHT
       .communication_format = i2s_comm_format_t(I2S_COMM_FORMAT_STAND_I2S | I2S_COMM_FORMAT_STAND_MSB), // i2s_comm_format_t(I2S_COMM_FORMAT_STAND_I2S | I2S_COMM_FORMAT_STAND_MSB)
-      .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
-      .dma_buf_count = 4,
-      .dma_buf_len = 1024,
-      .use_apll = false,
-      .tx_desc_auto_clear = false,
-      .fixed_mclk = 0};
+      .intr_alloc_flags = 0,
+      .dma_buf_count = 16,
+      .dma_buf_len = 60,
+      .use_apll = false
+      // ,
+      // .tx_desc_auto_clear = false,
+      // .fixed_mclk = 0
+      };
 
   esp_err_t err;
 
@@ -34,10 +37,10 @@ AxMic::AxMic(uint32_t sampleRate, int pinBclk, int pinLrc, int pinDin, i2s_port_
   }
 
   i2s_pin_config_t pin_config = {
-      .bck_io_num = pinBclk,             // BCKL
-      .ws_io_num = pinLrc,               // LRCL
+      .bck_io_num = pinBck,              // BCKL
+      .ws_io_num = pinWs,                // LRCL
       .data_out_num = I2S_PIN_NO_CHANGE, // not used (only for speakers)
-      .data_in_num = pinDin              // DOUT
+      .data_in_num = pinIn               // DOUT
   };
 
   err = i2s_set_pin(i2sPort, &pin_config);
@@ -61,28 +64,11 @@ int AxMic::read(char *data, int numData)
   i2s_read(this->_i2sPort, data, numData, &bytesRead, portMAX_DELAY);
   if (bytesRead > 0)
   {
-    numData = bytesRead / 4;
-    int32_t *data32 = (int32_t *)data;
-    int16_t *data16 = (int16_t *)data;
+    numData = bytesRead / 8;
     for (size_t i = 0; i < numData; i++)
     {
-      int32_t data32i;
-      int16_t data16i;
-      if (i < numData)
-      {
-        data32i = *data32;
-        data16i = int16_t(data32i >> 16);
-      }
-      else
-      {
-        data32i = *(data32 - 1);
-        data32i = data32i << 8;
-        data16i = int16_t(data32i >> 16);
-      }
-
-      data32 += 4;
-      data16[i] = data16i;
-      // Serial.println(String(data32i) + " => " + String(data16i));
+      data[i * 2] = data[i * 8 + 2];
+      data[i * 2 + 1] = data[i * 8 + 3];
     }
 
     bytesRead = numData * 2;
@@ -96,6 +82,16 @@ int AxMic::read(char *data, int numData)
 void AxMic::clear()
 {
   i2s_zero_dma_buffer(this->_i2sPort);
+}
+
+void AxMic::start()
+{
+  i2s_start(this->_i2sPort);
+}
+
+void AxMic::stop()
+{
+  i2s_stop(this->_i2sPort);
 }
 
 // 连续录音
