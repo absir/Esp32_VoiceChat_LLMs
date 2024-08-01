@@ -31,9 +31,11 @@ typedef enum
 
 // Mic PIN
 #define AX_MIC_SAMPLE_RATE 8000
-#define AX_MIC_DOUT_SD_IN 32
-#define AX_MIC_BCLK_SEL_SCK 4
-#define AX_MIC_LRC_WS 18
+#define AX_MIC_DOUT_SD_IN 23
+#define AX_MIC_LRCL_WS 22
+#define AX_MIC_BCLK_SCK 21
 #define AX_MIC_CONTINUE_RMS_MIN 50
+// mic功放
+#define AX_MIC_AMPLIFY_FACTOR 10
 
 #endif

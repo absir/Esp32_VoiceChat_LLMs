@@ -2,6 +2,7 @@
 #define AX_MIC_H
 #include <Arduino.h>
 #include "driver/i2s.h"
+#include "_axDefine.h"
 
 enum MicType
 {
@@ -31,7 +32,7 @@ public:
   // 连续录音
   int recordContiue(int *conLen, bool conAppend, char *data, int dataLen, int numStep, int *silence, int silenceMax, int rmsMin);
 
-  static float calculateRMS(char *data, int dataSize);
+  static int32_t calculateRMS(char *data, int dataSize);
 };
 
 #endif

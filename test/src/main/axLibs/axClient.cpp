@@ -23,29 +23,24 @@ int AxClient::chunkedSend(char *buff, size_t buffLen, int retry)
 {
     // chunkedSize计算
     size_t buffLenZ = 0;
-    size_t buffLenX = buffLen;
-    while (buffLenX > 0)
     {
-        buffLenZ++;
-        buffLenX = buffLenX / 16;
+        size_t buffLenX = buffLen;
+        while (buffLenX > 0)
+        {
+            buffLenZ++;
+            buffLenX = buffLenX / 16;
+        }
+
+        // 数据格式
+        memmove(buff + buffLenZ + 2, buff, buffLen);
+        sprintf(buff, "%zx", buffLen);
     }
 
-    // 数据格式
-    char b = buff[0];
-    char e = buff[buffLen - 1];
-    // memcpy buffLen + buffLenZ + 2
-    memcpy(buff + buffLenZ + 2, buff, buffLen + buffLenZ + 2);
-    sprintf(buff, "%zx", buffLen);
-    // buff[buffLenZ] = 0;
-    // Serial.println(" chunkedSend " + String(buff) + ", " + String(buffLen));
     buff[buffLenZ] = '\r';
     buff[buffLenZ + 1] = '\n';
     buffLen = buffLen + buffLenZ + 4;
     buff[buffLen - 2] = '\r';
     buff[buffLen - 1] = '\n';
-
-    // Serial.println(String((int)b) + " = " + String((int)buff[buffLenZ + 2]));
-    // Serial.println(String((int)e) + " = " + String((int)buff[buffLen - 3]));
 
     // 数据写入
     return chunkedWrite(buff, buffLen, retry);

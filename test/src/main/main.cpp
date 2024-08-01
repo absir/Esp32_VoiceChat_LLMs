@@ -10,8 +10,8 @@
 // 信号灯
 #define ledPin 2
 #define loopDelayDefault 10
-#define lowPin 23
-#define micPin 22
+#define lowPin 18
+#define micPin 19
 
 // 状态
 enum MainStatus
@@ -29,9 +29,9 @@ MainStatus status;
 bool audioPlayed = false;
 
 // 麦克风
-AxMic axMic(AX_MIC_SAMPLE_RATE, AX_MIC_BCLK_SEL_SCK, AX_MIC_LRC_WS, AX_MIC_DOUT_SD_IN);
+AxMic axMic(AX_MIC_SAMPLE_RATE, AX_MIC_BCLK_SCK, AX_MIC_LRCL_WS, AX_MIC_DOUT_SD_IN);
 #define axMicBuffLen 512000
-#define axMicBuffStep 5120
+#define axMicBuffStep 1024
 #define axMicSilenceMax 6
 char axMicBuff[axMicBuffStep + 16];
 int micState = 0;
@@ -79,6 +79,7 @@ void micStart()
     }
     // 录音清理
     axMic.clear();
+    axMic.read(axMicBuff, axMicBuffStep);
 }
 
 void micEnd(bool cancel)
