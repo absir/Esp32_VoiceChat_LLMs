@@ -155,6 +155,7 @@ void axBleInit(bool allowDiscover)
 
 	axBleConnected = false;
 	BLEDevice::init(AX_BLE_DEVICE_NAME);
+	
 	axBleServer = BLEDevice::createServer();
 	axBleServer->setCallbacks(new axServerCallbacks());
 	axBleService = axBleServer->createService(AX_BLE_SERVICE_UUID);

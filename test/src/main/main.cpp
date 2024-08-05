@@ -1,4 +1,4 @@
-// #include "./axLibs/axBle.h"
+#include "./axLibs/axBle.h"
 #include "./axLibs/axWifi.h"
 #include "./axLibs/axAudio.h"
 #include "./axLibs/axMic.h"
@@ -12,6 +12,7 @@
 #define loopDelayDefault 10
 #define lowPin 18
 #define micPin 19
+#define resetPin 5
 
 // 状态
 enum MainStatus
@@ -26,12 +27,13 @@ enum MainStatus
 
 uint32_t loopDelay = 0;
 MainStatus status;
+bool netConned = false;
 bool audioPlayed = false;
 
 // 麦克风
 AxMic axMic(AX_MIC_SAMPLE_RATE, AX_MIC_BCLK_SCK, AX_MIC_LRCL_WS, AX_MIC_DOUT_SD_IN);
 #define axMicBuffLen 512000
-#define axMicBuffStep 1024
+#define axMicBuffStep 512
 #define axMicSilenceMax 6
 char axMicBuff[axMicBuffStep + 16];
 int micState = 0;
@@ -44,16 +46,31 @@ AxClient axHttp;
 //
 #define axSpokenUrl "http://192.168.36.10:8787/S/spoken/4"
 // json解析
-DynamicJsonDocument jsonDoc(4096);
+DynamicJsonDocument jsonDoc(256);
+
+void play(const char *path)
+{
+    if (!axAudio->connecttoFS(SPIFFS, path))
+    {
+        Serial.println("play fail, " + String(path));
+    }
+}
 
 void setup()
 {
+    // 初始化 SPIFFS
+    if (!SPIFFS.begin(true))
+    {
+        Serial.println("SPIFFS initFail");
+    }
+
     // 信号引脚
     Serial.begin(115200);
     pinMode(ledPin, OUTPUT);
     pinMode(lowPin, OUTPUT);
     digitalWrite(lowPin, LOW);
     pinMode(micPin, INPUT_PULLUP);
+    pinMode(resetPin, INPUT_PULLUP);
 
     // 模块初始化
     // axBleInit(false);
@@ -102,6 +119,7 @@ void micEnd(bool cancel)
             if (repErr != 0 && repErr != 200)
             {
                 Serial.println("micEnd chunkedRespone err " + String(repErr));
+                play("/netFail.mp3");
             }
             else
             {
@@ -113,6 +131,10 @@ void micEnd(bool cancel)
                 {
                     axAudio->connecttohost(tUrl);
                 }
+                else
+                {
+                    play("/netFail.mp3");
+                }
             }
 
             axHttp.end();
@@ -122,6 +144,14 @@ void micEnd(bool cancel)
 
 void loop()
 {
+    if (digitalRead(resetPin) == LOW)
+    {
+        // 重置
+        axPreferences.clear();
+        ESP.restart();
+        return;
+    }
+
     // loop状态
     if (loopDelay > 0)
         delay(loopDelay);
@@ -133,7 +163,18 @@ void loop()
     {
         status = status == MainStatusSetUp ? MainStatusConning : MainStatusSetUp;
         digitalWrite(ledPin, status == MainStatusSetUp ? HIGH : LOW);
+        if (netConned)
+        {
+            netConned = false;
+            play("/netFail.mp3");
+        }
+
         return;
+    }
+    else if (!netConned)
+    {
+        netConned = true;
+        play("/netOk.mp3");
     }
 
     // MIC
@@ -174,6 +215,7 @@ void loop()
                 Serial.println("axMic chunkedSend err " + String(sendErr) + ", " + String(recordLen));
                 axMicConLen = -1;
                 micState = 3;
+                play("/netFail.mp3");
             }
         }
     }
@@ -195,7 +237,8 @@ void loop()
     if (!audioPlayed)
     {
         audioPlayed = true;
-        axAudio->connecttohost("https://p2.dev.yiyiny.com/a/tts.mp3");
+        // axAudio->connecttohost("https://p2.dev.yiyiny.com/a/tts.mp3");
+        play("/boot.mp3");
     }
 
     if (axAudio->isRunning())
