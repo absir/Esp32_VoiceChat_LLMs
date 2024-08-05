@@ -119,7 +119,7 @@ void micEnd(bool cancel)
             if (repErr != 0 && repErr != 200)
             {
                 Serial.println("micEnd chunkedRespone err " + String(repErr));
-                play("/netFail.mp3");
+                play("/reqFail.mp3");
             }
             else
             {
@@ -133,7 +133,7 @@ void micEnd(bool cancel)
                 }
                 else
                 {
-                    play("/netFail.mp3");
+                    play("/reqFail.mp3");
                 }
             }
 
@@ -169,7 +169,7 @@ void loop()
             play("/netFail.mp3");
         }
 
-        return;
+        // return;
     }
     else if (!netConned)
     {
@@ -215,7 +215,7 @@ void loop()
                 Serial.println("axMic chunkedSend err " + String(sendErr) + ", " + String(recordLen));
                 axMicConLen = -1;
                 micState = 3;
-                play("/netFail.mp3");
+                play("/reqFail.mp3");
             }
         }
     }
