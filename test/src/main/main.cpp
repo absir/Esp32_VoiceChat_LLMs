@@ -44,27 +44,84 @@ int axMicSilence = 0;
 // http请求
 AxClient axHttp;
 // http://192.168.36.10:8787/S/spoken/1
-//
-#define axSpokenUrl "http://192.168.36.10:8787/S/spoken/4"
 // json解析
 DynamicJsonDocument jsonDoc(2048);
 
-const char* onBleCmdOk = "{\"code\":0}";
-const char* onBleCmdFail = "{\"err\":\"fail\"}";
+// 参数
+String api = axPreferences.getString("api", "http://192.168.36.10:8787/S/spoken/4");
 
-void play(const char *path)
-{
-    if (!axAudio->connecttoFS(SPIFFS, path))
-    {
-        Serial.println("play fail, " + String(path));
-    }
-}
+// ble常量
+const char *onBleCmdOk = "{\"code\":0}";
+const char *onBleCmdFail = "{\"err\":\"fail\"}";
 
 void onBleCmdWifi(size_t lc, uint8_t *data)
 {
     deserializeJson(jsonDoc, (const char *)data);
     axWifiConn(jsonDoc["ssid"], jsonDoc["password"]);
     axBleSend(axBleCmdWifi, onBleCmdOk);
+}
+
+void onBleCmdStatus(size_t lc, uint8_t *data)
+{
+    jsonDoc.clear();
+    jsonDoc["api"] = api;
+    jsonDoc["volume"] = axAudio->getVolume();
+    String jsonString;
+    serializeJson(jsonDoc, jsonString);
+    axBleSend(axBleCmdStatus, jsonString.c_str());
+}
+
+void onBleCmdSet(size_t lc, uint8_t *data)
+{
+    deserializeJson(jsonDoc, (const char *)data);
+    if (jsonDoc.containsKey("api"))
+    {
+        api = String((const char *)jsonDoc["api"]);
+        axPreferences.putString("api", api);
+    }
+
+    if (jsonDoc.containsKey("volume"))
+    {
+        int volume = jsonDoc["volume"];
+        axAudioSetVolume(volume);
+    }
+}
+
+void onBleCmdPlayState(size_t lc, uint8_t *data)
+{
+    int state = atoi((const char *)data);
+    switch (state)
+    {
+    case 1:
+        // 播放
+        if (!axAudio->isRunning())
+        {
+            axAudio->pauseResume();
+        }
+        break;
+    case 2:
+        // 暂停
+        if (axAudio->isRunning())
+        {
+            axAudio->pauseResume();
+        }
+        break;
+    case 3:
+        // 播放|暂停
+        axAudio->pauseResume();
+        break;
+    case 4:
+        // 停止
+        axAudio->stopSong();
+        break;
+    }
+}
+
+void onBleCmdPlayList(size_t lc, uint8_t *data)
+{
+    deserializeJson(jsonDoc, (const char *)data);
+    JsonArray array = jsonDoc.as<JsonArray>();
+    axAudio->connecttohost(array[0]);
 }
 
 void setup()
@@ -90,7 +147,19 @@ void setup()
 
     // 模块初始化
     axBleReg(axBleCmdWifi, onBleCmdWifi);
+    axBleReg(axBleCmdStatus, onBleCmdStatus);
+    axBleReg(axBleCmdSet, onBleCmdSet);
+    axBleReg(axBleCmdPlayState, onBleCmdPlayState);
+    axBleReg(axBleCmdPlayList, onBleCmdPlayList);
     axBleInit(true);
+}
+
+void play(const char *path)
+{
+    if (!axAudio->connecttoFS(SPIFFS, path))
+    {
+        Serial.println("play fail, " + String(path));
+    }
 }
 
 void micStart()
@@ -215,7 +284,7 @@ void loop()
         {
             if (axMicConFirst)
             {
-                axHttp.begin(axSpokenUrl);
+                axHttp.begin(api);
                 // 设置连接超时时间为10秒
                 axHttp.setConnectTimeout(10000);
                 axHttp.addHeader("Content-Type", "application/octet-stream");

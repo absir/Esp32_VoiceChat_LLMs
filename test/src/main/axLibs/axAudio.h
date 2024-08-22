@@ -8,4 +8,6 @@ extern Audio *axAudio;
 
 void axAudioInit();
 
+void axAudioSetVolume(int volume);
+
 #endif

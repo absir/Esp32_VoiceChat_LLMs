@@ -14,8 +14,8 @@ typedef enum
     axBleCmdWifi,
     // 状态查询
     axBleCmdStatus,
-    // 音量调节
-    axBleCmdVolum,
+    // 设置参数
+    axBleCmdSet,
     // 播放状态
     axBleCmdPlayState,
     // 播放音乐列表
