@@ -17,8 +17,9 @@ extern BLECharacteristic *axBleCharacteristic;
 typedef void (*axBleOnCmd)(size_t lc, uint8_t *data);
 
 // 蓝牙命令回调
-void axBleReg(axBleCmd cmd, axBleOnCmd *onCmd);
+void axBleReg(axBleCmd cmd, axBleOnCmd onCmd);
 // 蓝牙发送
+void axBleSend(axBleCmd cmd, const char *data);
 void axBleSend(axBleCmd cmd, size_t lc, uint8_t *data);
 // 蓝牙初始化
 void axBleInit(bool allowDiscover);

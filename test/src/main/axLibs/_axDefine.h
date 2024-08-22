@@ -4,13 +4,23 @@
 #define AX_BLE_DEVICE_NAME "YYChat"
 #define AX_BLE_SERVICE_UUID "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define AX_BLE_CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+#define AX_BLE_CHARACTERISTIC_UUID_NOTIFY "beb5483e-36e1-4688-b7f5-ea07361b26a9"
 // AX_BLE_CMD_PRE 前缀特征码
 #define AX_BLE_CMD_PRE 0x7f
 // axBleCmd指令
 typedef enum
 {
+    // wifi配置
     axBleCmdWifi,
-
+    // 状态查询
+    axBleCmdStatus,
+    // 音量调节
+    axBleCmdVolum,
+    // 播放状态
+    axBleCmdPlayState,
+    // 播放音乐列表
+    axBleCmdPlayList,
+    // 指令数量
     axBleCmdCount,
 
 } axBleCmd;

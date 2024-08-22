@@ -49,12 +49,22 @@ AxClient axHttp;
 // json解析
 DynamicJsonDocument jsonDoc(2048);
 
+const char* onBleCmdOk = "{\"code\":0}";
+const char* onBleCmdFail = "{\"err\":\"fail\"}";
+
 void play(const char *path)
 {
     if (!axAudio->connecttoFS(SPIFFS, path))
     {
         Serial.println("play fail, " + String(path));
     }
+}
+
+void onBleCmdWifi(size_t lc, uint8_t *data)
+{
+    deserializeJson(jsonDoc, (const char *)data);
+    axWifiConn(jsonDoc["ssid"], jsonDoc["password"]);
+    axBleSend(axBleCmdWifi, onBleCmdOk);
 }
 
 void setup()
@@ -79,7 +89,8 @@ void setup()
     axWifiConn("yuanjiuyan", "88889999");
 
     // 模块初始化
-    // axBleInit(false);
+    axBleReg(axBleCmdWifi, onBleCmdWifi);
+    axBleInit(true);
 }
 
 void micStart()
@@ -159,6 +170,7 @@ void loop()
     loopDelay = loopDelayDefault;
 
     // WIFI
+    axBleLoop();
     axWifiLoop();
     if (!axWifiConnected)
     {

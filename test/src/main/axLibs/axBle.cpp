@@ -1,4 +1,5 @@
 #include "axBle.h"
+#include <BLE2902.h>
 
 #define PRE_KEY_BLE_CONNED "ble.conned"
 
@@ -7,6 +8,7 @@ bool axBleConnected = false;
 BLEServer *axBleServer;
 BLEService *axBleService;
 BLECharacteristic *axBleCharacteristic;
+BLECharacteristic *axBleCharacteristicRec;
 
 int _axBleInit = -1;
 bool _axBleInited = false;
@@ -58,14 +60,31 @@ public:
 		axCbuff->dataI = 0;
 	}
 
+	void onRead(BLECharacteristic *pCharacteristic)
+	{
+		onRecieve(pCharacteristic);
+	}
+
 	void onWrite(BLECharacteristic *pCharacteristic)
 	{
-		if (pCharacteristic != axBleCharacteristic)
+		onRecieve(pCharacteristic);
+	}
+
+	void onNotify(BLECharacteristic *pCharacteristic)
+	{
+		onRecieve(pCharacteristic);
+	}
+
+	void onRecieve(BLECharacteristic *pCharacteristic)
+	{
+		// Serial.println("ble onRecieve " + String(pCharacteristic->getUUID().toString().c_str()));
+		if (pCharacteristic != axBleCharacteristicRec)
 		{
 			return;
 		}
 
 		size_t dataLen = pCharacteristic->getLength();
+		// Serial.println("ble onRecieve dataLen = " + String(dataLen));
 		memcpy(axCbuff->data + axCbuff->dataI, pCharacteristic->getData(), dataLen);
 		axCbuff->dataI += dataLen;
 
@@ -109,14 +128,19 @@ public:
 	}
 };
 
-void axBleReg(axBleCmd cmd, axBleOnCmd *onCmd)
+void axBleReg(axBleCmd cmd, axBleOnCmd onCmd)
 {
 	if (!axBleOnCmds)
 	{
 		axBleOnCmds = new axBleOnCmd *[axBleCmdCount];
 	}
 
-	axBleOnCmds[cmd] = onCmd;
+	axBleOnCmds[cmd] = &onCmd;
+}
+
+void axBleSend(axBleCmd cmd, const char *data)
+{
+	axBleSend(cmd, strlen(data), (uint8_t *)data);
 }
 
 void axBleSend(axBleCmd cmd, size_t lc, uint8_t *data)
@@ -159,14 +183,25 @@ void axBleInit(bool allowDiscover)
 	axBleServer = BLEDevice::createServer();
 	axBleServer->setCallbacks(new axServerCallbacks());
 	axBleService = axBleServer->createService(AX_BLE_SERVICE_UUID);
-	uint32_t properties = BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_INDICATE;
+	// BLECharacteristic::PROPERTY_READ |
+	// BLECharacteristic::PROPERTY_WRITE |
+	// | BLECharacteristic::PROPERTY_INDICATE
+
+	// notify Characteristic
+	uint32_t properties = BLECharacteristic::PROPERTY_NOTIFY;
+	axBleCharacteristic = axBleService->createCharacteristic(AX_BLE_CHARACTERISTIC_UUID_NOTIFY, properties);
+	axBleCharacteristic->addDescriptor(new BLE2902());
+
+	// write Characteristic
+	properties = BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_WRITE_NR;
 	if (allowDiscover)
 	{
 		properties |= BLECharacteristic::PROPERTY_BROADCAST;
 	}
 
-	axBleCharacteristic = axBleService->createCharacteristic(AX_BLE_CHARACTERISTIC_UUID, properties);
-	axBleCharacteristic->setCallbacks(new axCharacteristicCallbacks());
+	axBleCharacteristicRec = axBleService->createCharacteristic(AX_BLE_CHARACTERISTIC_UUID, properties);
+	axBleCharacteristicRec->setValue("WRITE");
+	axBleCharacteristicRec->setCallbacks(new axCharacteristicCallbacks());
 
 	axBleService->start();
 
