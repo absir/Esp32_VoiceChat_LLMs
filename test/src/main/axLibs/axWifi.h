@@ -5,6 +5,7 @@
 #include "axBle.h"
 
 extern bool axWifiConnected;
+extern int axWifiConnSeq;
 
 // wifi连接
 void axWifiConn(const char *ssid, const char *passwd);

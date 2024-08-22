@@ -17,7 +17,9 @@ AxMic::AxMic(uint32_t sampleRate, int pinBck, int pinWs, int pinIn, i2s_port_t i
       .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX), // 接收模式
       .sample_rate = sampleRate,
       .bits_per_sample = bitsPreSample,
-      .channel_format = I2S_CHANNEL_FMT_ONLY_RIGHT,                                                     // 单声道 I2S_CHANNEL_FMT_ONLY_RIGHT
+      // I2S_CHANNEL_FMT_ONLY_RIGHT
+      // I2S_CHANNEL_FMT_ONLY_LEFT
+      .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT,                                                     // 单声道 I2S_CHANNEL_FMT_ONLY_RIGHT
       .communication_format = i2s_comm_format_t(I2S_COMM_FORMAT_STAND_I2S | I2S_COMM_FORMAT_STAND_MSB), // i2s_comm_format_t(I2S_COMM_FORMAT_STAND_I2S | I2S_COMM_FORMAT_STAND_MSB)
       .intr_alloc_flags = 0,
       .dma_buf_count = 2,

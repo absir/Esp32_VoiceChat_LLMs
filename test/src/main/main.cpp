@@ -10,9 +10,9 @@
 // 信号灯
 #define ledPin 2
 #define loopDelayDefault 10
-#define lowPin 18
-#define micPin 19
-#define resetPin 5
+#define lowPin 4
+#define micPin 5
+#define resetPin 6
 
 // 状态
 enum MainStatus
@@ -28,7 +28,8 @@ enum MainStatus
 uint32_t loopDelay = 0;
 MainStatus status;
 bool netConned = false;
-bool audioPlayed = false;
+int netConnSeq = 0;
+bool loopBooted = false;
 
 // 麦克风
 AxMic axMic(AX_MIC_SAMPLE_RATE, AX_MIC_BCLK_SCK, AX_MIC_LRCL_WS, AX_MIC_DOUT_SD_IN);
@@ -46,7 +47,7 @@ AxClient axHttp;
 //
 #define axSpokenUrl "http://192.168.36.10:8787/S/spoken/4"
 // json解析
-DynamicJsonDocument jsonDoc(256);
+DynamicJsonDocument jsonDoc(2048);
 
 void play(const char *path)
 {
@@ -72,13 +73,13 @@ void setup()
     pinMode(micPin, INPUT_PULLUP);
     pinMode(resetPin, INPUT_PULLUP);
 
-    // 模块初始化
-    // axBleInit(false);
+    axAudioInit();
 
     axWifiInit();
     axWifiConn("yuanjiuyan", "88889999");
 
-    axAudioInit();
+    // 模块初始化
+    // axBleInit(false);
 }
 
 void micStart()
@@ -163,17 +164,19 @@ void loop()
     {
         status = status == MainStatusSetUp ? MainStatusConning : MainStatusSetUp;
         digitalWrite(ledPin, status == MainStatusSetUp ? HIGH : LOW);
-        if (netConned)
+        if (netConned || netConnSeq != axWifiConnSeq)
         {
             netConned = false;
+            netConnSeq = axWifiConnSeq;
             play("/netFail.mp3");
         }
 
         // return;
     }
-    else if (!netConned)
+    else if (!netConned || netConnSeq != axWifiConnSeq)
     {
         netConned = true;
+        netConnSeq = axWifiConnSeq;
         play("/netOk.mp3");
     }
 
@@ -234,9 +237,10 @@ void loop()
 
     // 播放
     axAudio->loop();
-    if (!audioPlayed)
+    if (!loopBooted)
     {
-        audioPlayed = true;
+        loopBooted = true;
+        Serial.println("loopBoot");
         // axAudio->connecttohost("https://p2.dev.yiyiny.com/a/tts.mp3");
         play("/boot.mp3");
     }

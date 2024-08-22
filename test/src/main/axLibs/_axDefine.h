@@ -15,14 +15,14 @@ typedef enum
 
 } axBleCmd;
 
-#define AX_WIFI_CHECK_INTERVAL 2000
+#define AX_WIFI_CHECK_INTERVAL 3000
 #define AX_WIFI_RECONN_INTERVAL 30000
 #define AX_WIFI_CONN_KEEP_WAIT 1000
 
 // Audio PIN
-#define AX_AUDIO_DOUT 27
-#define AX_AUDIO_BCLK 26
-#define AX_AUDIO_LRC 25
+#define AX_AUDIO_LRC 9
+#define AX_AUDIO_BCLK 10
+#define AX_AUDIO_DOUT 11
 
 #define AX_VOL_DEFAULT 50
 #define AX_VOL_MAX_STEPS 15
@@ -31,9 +31,9 @@ typedef enum
 
 // Mic PIN
 #define AX_MIC_SAMPLE_RATE 8000
-#define AX_MIC_DOUT_SD_IN 23
-#define AX_MIC_LRCL_WS 22
-#define AX_MIC_BCLK_SCK 21
+#define AX_MIC_LRCL_WS 40
+#define AX_MIC_DOUT_SD_IN 41
+#define AX_MIC_BCLK_SCK 42
 #define AX_MIC_CONTINUE_RMS_MIN 50
 // mic功放
 #define AX_MIC_AMPLIFY_FACTOR 10
