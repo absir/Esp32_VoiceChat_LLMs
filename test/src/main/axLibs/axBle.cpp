@@ -145,6 +145,11 @@ void axBleSend(axBleCmd cmd, const char *data)
 
 void axBleSend(axBleCmd cmd, size_t lc, uint8_t *data)
 {
+	if (axBleCharacteristic == nullptr)
+	{
+		return;
+	}
+
 	size_t allLc = 4 + lc;
 	uint8_t *allData = new uint8_t(4 + lc);
 	allData[0] = AX_BLE_CMD_PRE;

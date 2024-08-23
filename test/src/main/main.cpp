@@ -47,12 +47,94 @@ AxClient axHttp;
 // json解析
 DynamicJsonDocument jsonDoc(2048);
 
+DynamicJsonDocument jsonDocPlayList(20480);
+JsonArray *playList = nullptr;
+int playIndex = 0;
+int playIndexed = -1;
+
 // 参数
 String api = axPreferences.getString("api", "http://192.168.36.10:8787/S/spoken/4");
 
 // ble常量
 const char *onBleCmdOk = "{\"code\":0}";
 const char *onBleCmdFail = "{\"err\":\"fail\"}";
+
+void micEnd(bool cancel);
+
+void playListPrepare()
+{
+    if (micState != 0 && micState != 4)
+    {
+        micEnd(true);
+    }
+
+    if (axAudio->isRunning())
+    {
+        axAudio->stopSong();
+    }
+
+    playIndexed = -1;
+}
+
+void playListStop()
+{
+    if (axAudio->isRunning())
+    {
+        axAudio->stopSong();
+    }
+
+    if (playList != nullptr)
+    {
+        playList = nullptr;
+        // stop
+        axBleSend(axBleCmdPlayState, "4");
+    }
+}
+
+void playListSend(bool setPos)
+{
+    if (playList != nullptr && playIndex >= 0 && playIndex < playList->size())
+    {
+        uint32_t duration = axAudio->getAudioFileDuration();
+        if (duration > 0)
+        {
+            playIndexed = playIndex;
+            JsonObject playData = (*playList)[playIndex];
+            if (setPos && playData.containsKey("pos"))
+            {
+                axAudio->setAudioPlayPosition(playData["pos"]);
+            }
+
+            jsonDoc.clear();
+            jsonDoc["duration"] = duration;
+            jsonDoc["current"] = axAudio->getAudioCurrentTime();
+            jsonDoc["data"] = playData;
+            if (jsonDocPlayList.containsKey("id"))
+            {
+                jsonDoc["id"] = jsonDocPlayList["id"];
+            }
+
+            String jsonString;
+            serializeJson(jsonDoc, jsonString);
+            axBleSend(axBleCmdPlayList, jsonString.c_str());
+        }
+    }
+}
+
+void play(const char *path)
+{
+    playListStop();
+    if (!axAudio->connecttoFS(SPIFFS, path))
+    {
+        Serial.println("play fail, " + String(path));
+    }
+}
+
+void playHost(const char *host)
+{
+    playListStop();
+    axAudio->connecttohost(host);
+}
 
 void onBleCmdWifi(size_t lc, uint8_t *data)
 {
@@ -66,9 +148,12 @@ void onBleCmdStatus(size_t lc, uint8_t *data)
     jsonDoc.clear();
     jsonDoc["api"] = api;
     jsonDoc["volume"] = axAudio->getVolume();
+    jsonDoc["running"] = axAudio->isRunning();
     String jsonString;
     serializeJson(jsonDoc, jsonString);
     axBleSend(axBleCmdStatus, jsonString.c_str());
+    // 发送当前播放列表信息
+    playListSend(false);
 }
 
 void onBleCmdSet(size_t lc, uint8_t *data)
@@ -112,16 +197,38 @@ void onBleCmdPlayState(size_t lc, uint8_t *data)
         break;
     case 4:
         // 停止
-        axAudio->stopSong();
+        playListStop();
         break;
     }
 }
 
 void onBleCmdPlayList(size_t lc, uint8_t *data)
 {
-    deserializeJson(jsonDoc, (const char *)data);
+    deserializeJson(jsonDocPlayList, (const char *)data);
+    if (!jsonDocPlayList.containsKey("list"))
+    {
+        return;
+    }
+
+    JsonArray list = jsonDocPlayList["list"];
+    playList = nullptr;
+    playListPrepare();
+    playList = &list;
     JsonArray array = jsonDoc.as<JsonArray>();
-    axAudio->connecttohost(array[0]);
+    playIndex = jsonDocPlayList.containsKey("index") ? jsonDocPlayList["index"] : 0;
+    if (playIndex >= 0 && playIndex < playList->size())
+    {
+        JsonObject playData = (*playList)[playIndex];
+        if (playData.containsKey("url"))
+        {
+            // 播放，待同步
+            playIndexed = -1;
+            axAudio->connecttohost(playData["url"]);
+            return;
+        }
+    }
+
+    playList = nullptr;
 }
 
 void setup()
@@ -154,14 +261,6 @@ void setup()
     axBleInit(true);
 }
 
-void play(const char *path)
-{
-    if (!axAudio->connecttoFS(SPIFFS, path))
-    {
-        Serial.println("play fail, " + String(path));
-    }
-}
-
 void micStart()
 {
     Serial.println("micStart");
@@ -171,10 +270,7 @@ void micStart()
     // 高亮
     digitalWrite(ledPin, HIGH);
     // 停止播放
-    if (axAudio->isRunning())
-    {
-        axAudio->stopSong();
-    }
+    playListStop();
     // 录音清理
     axMic.clear();
     axMic.read(axMicBuff, axMicBuffStep);
@@ -191,10 +287,12 @@ void micEnd(bool cancel)
         // 有录音数据|请求
         if (cancel || axMicConLen < 1024)
         {
+            axMicConLen = 0;
             axHttp.end();
         }
         else
         {
+            axMicConLen = 0;
             axHttp.setTimeout(30000);
             int repErr = axHttp.chunkedRespone();
             if (repErr != 0 && repErr != 200)
@@ -317,6 +415,7 @@ void loop()
     }
 
     // 播放
+    bool axAudioRunning = axAudio->isRunning();
     axAudio->loop();
     if (!loopBooted)
     {
@@ -335,7 +434,33 @@ void loop()
         }
 
         loopDelay = 0;
+        if (playIndexed == -1 && playIndexed != playIndex)
+        {
+            playListSend(true);
+        }
+
         return;
+    }
+    else
+    {
+        if (axAudioRunning && playList != nullptr)
+        {
+            // 自动播放下一曲
+            playIndex++;
+            if (playIndex >= 0 && playIndex < playList->size())
+            {
+                JsonObject playData = (*playList)[playIndex];
+                if (playData.containsKey("url"))
+                {
+                    playIndexed = -1;
+                    axAudio->connecttohost(playData["url"]);
+                }
+                else
+                {
+                    playList = nullptr;
+                }
+            }
+        }
     }
 
     // 空闲
