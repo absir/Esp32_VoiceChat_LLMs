@@ -9,6 +9,7 @@ BLEServer *axBleServer;
 BLEService *axBleService;
 BLECharacteristic *axBleCharacteristic;
 BLECharacteristic *axBleCharacteristicRec;
+// BLEAdvertising *pAdvertising;
 
 int _axBleInit = -1;
 bool _axBleInited = false;
@@ -33,17 +34,19 @@ class axServerCallbacks : public BLEServerCallbacks
 	void onDisconnect(BLEServer *pServer)
 	{
 		axBleConnected = false;
+		// 重新可见
+		BLEDevice::startAdvertising();
 	}
 };
 
 struct axCharacteristicCallbacksBuff
 {
 	// 考虑双指令缓存
-	uint8_t data[1024];
+	uint8_t data[2048];
 	size_t dataI;
 };
 
-axBleOnCmd **axBleOnCmds = nullptr;
+axBleOnCmd *axBleOnCmds = nullptr;
 
 struct axCharacteristicCallbacksBuff *axCbuff = nullptr;
 
@@ -62,7 +65,7 @@ public:
 
 	void onRead(BLECharacteristic *pCharacteristic)
 	{
-		onRecieve(pCharacteristic);
+		// onRecieve(pCharacteristic);
 	}
 
 	void onWrite(BLECharacteristic *pCharacteristic)
@@ -72,7 +75,7 @@ public:
 
 	void onNotify(BLECharacteristic *pCharacteristic)
 	{
-		onRecieve(pCharacteristic);
+		// onRecieve(pCharacteristic);
 	}
 
 	void onRecieve(BLECharacteristic *pCharacteristic)
@@ -117,14 +120,15 @@ public:
 
 	void onCmd(uint8_t cmd, size_t lc, uint8_t *data)
 	{
-		axBleOnCmd *onCmd = axBleOnCmds && cmd >= 0 && cmd < axBleCmdCount ? axBleOnCmds[cmd] : nullptr;
+		// Serial.println("onCmd: " + String(cmd) + ", " + String(lc));
+		axBleOnCmd onCmd = axBleOnCmds && cmd >= 0 && cmd < axBleCmdCount ? axBleOnCmds[cmd] : nullptr;
 		if (!onCmd)
 		{
 			Serial.println("onCmd unReg " + String(cmd));
 			return;
 		}
 
-		(*onCmd)(lc, data);
+		onCmd(lc, data);
 	}
 };
 
@@ -132,14 +136,15 @@ void axBleReg(axBleCmd cmd, axBleOnCmd onCmd)
 {
 	if (!axBleOnCmds)
 	{
-		axBleOnCmds = new axBleOnCmd *[axBleCmdCount];
+		axBleOnCmds = new axBleOnCmd[axBleCmdCount];
 	}
 
-	axBleOnCmds[cmd] = &onCmd;
+	axBleOnCmds[cmd] = onCmd;
 }
 
 void axBleSend(axBleCmd cmd, const char *data)
 {
+	Serial.println("axBleSend const char *" + String(cmd));
 	axBleSend(cmd, strlen(data), (uint8_t *)data);
 }
 
@@ -150,6 +155,7 @@ void axBleSend(axBleCmd cmd, size_t lc, uint8_t *data)
 		return;
 	}
 
+	Serial.println("axBleSend: " + String(cmd) + ", " + String(lc));
 	size_t allLc = 4 + lc;
 	uint8_t *allData = new uint8_t(4 + lc);
 	allData[0] = AX_BLE_CMD_PRE;
@@ -158,11 +164,14 @@ void axBleSend(axBleCmd cmd, size_t lc, uint8_t *data)
 	allData[3] = lc % 128;
 	if (lc > 0)
 	{
-		memcpy(allData + 4, data, lc);
+		memmove(allData + 4, data, lc);
 	}
 
-	axBleCharacteristic->setValue(allData, allLc);
-	axBleCharacteristic->notify();
+	Serial.println("axBleSend setValue 0");
+	// axBleCharacteristic->setValue(allData, allLc);
+	Serial.println("axBleSend notify 0");
+	// axBleCharacteristic->notify();
+	free(allData);
 }
 
 void axBleInit(bool allowDiscover)
@@ -205,7 +214,7 @@ void axBleInit(bool allowDiscover)
 	}
 
 	axBleCharacteristicRec = axBleService->createCharacteristic(AX_BLE_CHARACTERISTIC_UUID, properties);
-	axBleCharacteristicRec->setValue("WRITE");
+	axBleCharacteristicRec->addDescriptor(new BLE2902());
 	axBleCharacteristicRec->setCallbacks(new axCharacteristicCallbacks());
 
 	axBleService->start();

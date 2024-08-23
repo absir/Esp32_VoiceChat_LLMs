@@ -45,9 +45,9 @@ int axMicSilence = 0;
 AxClient axHttp;
 // http://192.168.36.10:8787/S/spoken/1
 // json解析
-DynamicJsonDocument jsonDoc(2048);
+DynamicJsonDocument jsonDoc(512);
 
-DynamicJsonDocument jsonDocPlayList(20480);
+DynamicJsonDocument jsonDocPlayList(2048);
 JsonArray *playList = nullptr;
 int playIndex = 0;
 int playIndexed = -1;
@@ -139,8 +139,13 @@ void playHost(const char *host)
 
 void onBleCmdWifi(size_t lc, uint8_t *data)
 {
+    // Serial.println("onBleCmdWifi");
+    Serial.println(String((const char *)data));
     deserializeJson(jsonDoc, (const char *)data);
+    // Serial.println("onBleCmdWifi deserializeJson did");
     axWifiConn(jsonDoc["ssid"], jsonDoc["password"]);
+    // axWifiConn("yuanjiuyan", "88889999");
+    Serial.println("onBleCmdWifi axWifiConn did");
     axBleSend(axBleCmdWifi, onBleCmdOk);
 }
 

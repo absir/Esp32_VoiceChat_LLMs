@@ -28,12 +28,23 @@ void axWifiEvent(WiFiEvent_t event)
 
 void axWifiConnDo(const char *ssid, const char *passwd)
 {
-    _event = -1;
-    _statusReconnNext = millis() + AX_WIFI_RECONN_INTERVAL;
-    Serial.println("axWifi connect " + _ssid);
-    WiFi.disconnect();
+    if (WiFi.status() == WL_CONNECTED)
+    {
+        WiFi.disconnect();
+        delay(1000);
+    }
+
+    WiFi.enableSTA(false);
+    delay(1000);
+    WiFi.enableSTA(true);
+    WiFi.persistent(false);
+    WiFi.setAutoConnect(false);
+    WiFi.setAutoReconnect(true);
     WiFi.begin(ssid, passwd);
     WiFi.setTxPower(WIFI_POWER_8_5dBm);
+    _event = -1;
+    _statusCheckNext = millis() + AX_WIFI_CHECK_INTERVAL;
+    _statusReconnNext = millis() + AX_WIFI_RECONN_INTERVAL;
 }
 
 void axWifiConn(const char *ssid, const char *passwd)
@@ -43,7 +54,8 @@ void axWifiConn(const char *ssid, const char *passwd)
     _conning = true;
     axPreferences.putString(PRE_KEY_WIFI_SSID, _ssid);
     axPreferences.putString(PRE_KEY_WIFI_PASSWD, _passwd);
-    axWifiConnDo(ssid, passwd);
+    // _statusCheckNext = _statusReconnNext = 0;
+    axWifiConnDo(_ssid.c_str(), _passwd.c_str());
 }
 
 void axWifiInit()
@@ -51,6 +63,15 @@ void axWifiInit()
     WiFi.onEvent(axWifiEvent);
     _ssid = axPreferences.getString(PRE_KEY_WIFI_SSID);
     _passwd = axPreferences.getString(PRE_KEY_WIFI_PASSWD);
+    Serial.println("axWifiInit: " + _ssid + "  " + _passwd);
+    if (_ssid.length() <= 0)
+    {
+        // 必须初始化
+        _ssid = "yuanjiuyan";
+        _passwd = "88889999";
+    }
+
+    axWifiLoop();
 }
 
 void axWifiLoop()
