@@ -53,7 +53,8 @@ int playIndex = 0;
 int playIndexed = -1;
 
 // 参数
-String api = axPreferences.getString("api", "http://192.168.36.10:8787/S/spoken/4");
+#define API "http://192.168.36.10:8787/S/spoken/4"
+String api = axPreferences.getString("api", API);
 
 // ble常量
 const char *onBleCmdOk = "{\"code\":0}";
@@ -162,7 +163,15 @@ void onBleCmdSet(size_t lc, uint8_t *data)
     if (jsonDoc.containsKey("api"))
     {
         api = String((const char *)jsonDoc["api"]);
-        axPreferences.putString("api", api);
+        if (api.length() <= 1)
+        {
+            api = API;
+            axPreferences.remove("api");
+        }
+        else
+        {
+            axPreferences.putString("api", api);
+        }
     }
 
     if (jsonDoc.containsKey("volume"))
@@ -250,7 +259,7 @@ void setup()
     axAudioInit();
 
     axWifiInit();
-    axWifiConn("yuanjiuyan", "88889999");
+    // axWifiConn("yuanjiuyan", "88889999");
 
     // 模块初始化
     axBleReg(axBleCmdWifi, onBleCmdWifi);
@@ -308,7 +317,7 @@ void micEnd(bool cancel)
                 const char *tUrl = jsonDoc["tUrl"];
                 if (tUrl)
                 {
-                    axAudio->connecttohost(tUrl);
+                    playHost(tUrl);
                 }
                 else
                 {
@@ -454,12 +463,11 @@ void loop()
                 {
                     playIndexed = -1;
                     axAudio->connecttohost(playData["url"]);
-                }
-                else
-                {
-                    playList = nullptr;
+                    return;
                 }
             }
+
+            playList = nullptr;
         }
     }
 
