@@ -26,22 +26,34 @@ void axWifiEvent(WiFiEvent_t event)
     Serial.println("axWifiEvent : " + String(event));
 }
 
+bool _connFirst = true;
+
 void axWifiConnDo(const char *ssid, const char *passwd)
 {
-    if (WiFi.status() == WL_CONNECTED)
+    axWifiConnected = false;
+    WiFi.disconnect();
+    _status = WL_DISCONNECTED;
+    while (WiFi.status() == WL_CONNECTED)
     {
         WiFi.disconnect();
         delay(1000);
     }
 
-    WiFi.enableSTA(false);
-    delay(1000);
-    WiFi.enableSTA(true);
-    WiFi.persistent(false);
-    WiFi.setAutoConnect(false);
-    WiFi.setAutoReconnect(true);
+    if (_connFirst)
+    {
+        WiFi.persistent(false);
+        WiFi.setAutoConnect(false);
+        WiFi.setAutoReconnect(true);
+    }
+
+    // Serial.println("axWifiConnDo: " + String(ssid) + ", " + String(passwd));
     WiFi.begin(ssid, passwd);
-    WiFi.setTxPower(WIFI_POWER_8_5dBm);
+    if (_connFirst)
+    {
+        WiFi.setTxPower(WIFI_POWER_8_5dBm);
+        _connFirst = false;
+    }
+
     _event = -1;
     _statusCheckNext = millis() + AX_WIFI_CHECK_INTERVAL;
     _statusReconnNext = millis() + AX_WIFI_RECONN_INTERVAL;
@@ -86,13 +98,13 @@ void axWifiLoop()
     {
         _statusCheckNext = currentMillis + AX_WIFI_CHECK_INTERVAL;
         wl_status_t status = WiFi.status();
-        _status = status;
-        if (_conning && (status == WL_CONNECTED || status == WL_DISCONNECTED))
+        if (_conning && _status != status && (status == WL_CONNECTED || status == WL_DISCONNECTED))
         {
             _conning = false;
             axWifiConnSeq = axWifiConnSeq >= 65535 ? 0 : (axWifiConnSeq + 1);
         }
 
+        _status = status;
         if (status == WL_CONNECTED)
         {
             if (!axWifiConnected || _conning)

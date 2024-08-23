@@ -140,12 +140,13 @@ void playHost(const char *host)
 void onBleCmdWifi(size_t lc, uint8_t *data)
 {
     // Serial.println("onBleCmdWifi");
-    Serial.println(String((const char *)data));
+    // Serial.println(String((const char *)data));
     deserializeJson(jsonDoc, (const char *)data);
     // Serial.println("onBleCmdWifi deserializeJson did");
-    axWifiConn(jsonDoc["ssid"], jsonDoc["password"]);
+    netConned = false;
+    axWifiConn(jsonDoc["ssid"], jsonDoc["passwd"]);
     // axWifiConn("yuanjiuyan", "88889999");
-    Serial.println("onBleCmdWifi axWifiConn did");
+    // Serial.println("onBleCmdWifi axWifiConn did");
     axBleSend(axBleCmdWifi, onBleCmdOk);
 }
 
