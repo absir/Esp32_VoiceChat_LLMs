@@ -72,8 +72,10 @@ void axWifiConn(const char *ssid, const char *passwd)
     _ssid = ssid;
     _passwd = passwd;
     _conning = true;
+    axPreferences.begin(AX_PRE_NAMESPACE);
     axPreferences.putString(PRE_KEY_WIFI_SSID, _ssid);
     axPreferences.putString(PRE_KEY_WIFI_PASSWD, _passwd);
+    axPreferences.end();
     // _statusCheckNext = _statusReconnNext = 0;
     axWifiConnDo(_ssid.c_str(), _passwd.c_str());
 }
@@ -81,8 +83,10 @@ void axWifiConn(const char *ssid, const char *passwd)
 void axWifiInit()
 {
     WiFi.onEvent(axWifiEvent);
+    axPreferences.begin(AX_PRE_NAMESPACE);
     _ssid = axPreferences.getString(PRE_KEY_WIFI_SSID);
     _passwd = axPreferences.getString(PRE_KEY_WIFI_PASSWD);
+    axPreferences.end();
     Serial.println("axWifiInit: " + _ssid + "  " + _passwd);
     if (_ssid.length() <= 0)
     {

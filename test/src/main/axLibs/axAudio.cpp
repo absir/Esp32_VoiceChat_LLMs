@@ -1,6 +1,6 @@
 #include "axAudio.h"
 
-#define PRE_VOLUME_KEY "ax.volume"
+#define PRE_VOLUME_KEY "volume"
 
 Audio audio(false, 3, I2S_NUM_1);
 Audio *axAudio = nullptr;
@@ -18,12 +18,16 @@ void axAudioInit()
         Serial.println("axAudioInit failed.");
     }
 
+    axPreferences.begin(AX_PRE_NAMESPACE);
     axAudio->setVolume(axPreferences.getInt(PRE_VOLUME_KEY, AX_VOL_DEFAULT));
+    axPreferences.end();
     axAudio->setConnectionTimeout(AX_VOL_TIMEOUT_MS, AX_VOL_TIMEOUT_SSL_MS);
 }
 
 void axAudioSetVolume(int volume)
 {
     axAudio->setVolume(volume);
+    axPreferences.begin(AX_PRE_NAMESPACE);
     axPreferences.putInt(PRE_VOLUME_KEY, volume);
+    axPreferences.end();
 }

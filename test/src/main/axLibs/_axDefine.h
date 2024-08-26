@@ -1,6 +1,7 @@
 #ifndef _AX_DEFINE
 #define _AX_DEFINE
 
+#define AX_PRE_NAMESPACE "AX_PRE"
 #define AX_BLE_DEVICE_NAME "YYChat"
 #define AX_BLE_SERVICE_UUID "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define AX_BLE_CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
@@ -20,6 +21,8 @@ typedef enum
     axBleCmdPlayState,
     // 播放音乐列表
     axBleCmdPlayList,
+    // 播放列表结束
+    axBleCmdPlayListEnd,
     // 指令数量
     axBleCmdCount,
 

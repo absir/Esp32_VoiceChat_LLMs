@@ -13,6 +13,18 @@ BLECharacteristic *axBleCharacteristicRec;
 
 int _axBleInit = -1;
 bool _axBleInited = false;
+// 代码互斥
+SemaphoreHandle_t _axBleMutex = nullptr;
+
+struct axCharacteristicCallbacksBuff
+{
+	// 考虑双指令缓存
+	uint8_t data[2048];
+	size_t dataI;
+	uint8_t sendBuff[4];
+};
+
+struct axCharacteristicCallbacksBuff *axCbuff = nullptr;
 
 class axServerCallbacks : public BLEServerCallbacks
 {
@@ -27,7 +39,14 @@ class axServerCallbacks : public BLEServerCallbacks
 		if (_axBleInit == 0)
 		{
 			_axBleInit = 1;
+			axPreferences.begin(AX_PRE_NAMESPACE);
 			axPreferences.putBool(PRE_KEY_BLE_CONNED, true);
+			axPreferences.end();
+		}
+
+		if (axCbuff)
+		{
+			axCbuff->dataI = 0;
 		}
 	}
 
@@ -39,17 +58,7 @@ class axServerCallbacks : public BLEServerCallbacks
 	}
 };
 
-struct axCharacteristicCallbacksBuff
-{
-	// 考虑双指令缓存
-	uint8_t data[2048];
-	size_t dataI;
-	uint8_t sendBuff[4];
-};
-
 axBleOnCmd *axBleOnCmds = nullptr;
-
-struct axCharacteristicCallbacksBuff *axCbuff = nullptr;
 
 class axCharacteristicCallbacks : public BLECharacteristicCallbacks
 {
@@ -149,6 +158,11 @@ void axBleSend(axBleCmd cmd, const char *data)
 	axBleSend(cmd, data == nullptr ? 0 : strlen(data), (uint8_t *)data);
 }
 
+void axBleSendWaitDone()
+{
+	delay(80);
+}
+
 void axBleSend(axBleCmd cmd, size_t lc, uint8_t *data)
 {
 	if (axBleCharacteristic == nullptr)
@@ -156,6 +170,7 @@ void axBleSend(axBleCmd cmd, size_t lc, uint8_t *data)
 		return;
 	}
 
+	xSemaphoreTake(_axBleMutex, portMAX_DELAY);
 	Serial.println("axBleSend: " + String(cmd) + ", " + String(lc));
 	if (!axCbuff)
 	{
@@ -169,32 +184,36 @@ void axBleSend(axBleCmd cmd, size_t lc, uint8_t *data)
 	sendBuff[3] = lc % 128;
 	axBleCharacteristic->setValue(sendBuff, 4);
 	axBleCharacteristic->notify();
-	delay(200);
+	axBleSendWaitDone();
 
 	int i = 0;
 	while (i < lc)
 	{
 		int max = i + 20;
-		if (max <= lc)
+		bool end = max >= lc;
+		axBleCharacteristic->setValue(data + i, (end ? lc : max) - i);
+		axBleCharacteristic->notify();
+		axBleSendWaitDone();
+		if (end)
 		{
-			axBleCharacteristic->setValue(data + i, lc - i);
-			axBleCharacteristic->notify();
-			delay(200);
 			break;
 		}
 
-		axBleCharacteristic->setValue(data + i, max - i);
-		axBleCharacteristic->notify();
-		delay(200);
 		i = max;
 	}
+
+	xSemaphoreGive(_axBleMutex);
 }
 
 void axBleInit(bool allowDiscover)
 {
+	_axBleMutex = xSemaphoreCreateMutex();
+
 	if (_axBleInit < 0)
 	{
+		axPreferences.begin(AX_PRE_NAMESPACE);
 		_axBleInit = axPreferences.getBool(PRE_KEY_BLE_CONNED) ? 1 : 0;
+		axPreferences.end();
 	}
 
 	if (!allowDiscover && _axBleInit <= 0)
