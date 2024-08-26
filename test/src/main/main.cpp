@@ -99,7 +99,7 @@ void playListSend(int loadedSetPos, bool looped)
 {
     if (!looped)
     {
-        xSemaphoreGive(loopMutex);
+        xSemaphoreTake(loopMutex, portMAX_DELAY);
     }
 
     if (playList != nullptr && playIndex >= 0 && playIndex < playList->size())
@@ -160,7 +160,7 @@ void playHost(const char *host)
 
 void onBleCmdWifi(size_t lc, uint8_t *data)
 {
-    xSemaphoreGive(loopMutex);
+    xSemaphoreTake(loopMutex, portMAX_DELAY);
     deserializeJson(jsonDoc, (const char *)data);
     netConned = false;
     netConnSeq = axWifiConnSeq;
@@ -172,7 +172,7 @@ void onBleCmdWifi(size_t lc, uint8_t *data)
 
 void onBleCmdStatus(size_t lc, uint8_t *data)
 {
-    xSemaphoreGive(loopMutex);
+    xSemaphoreTake(loopMutex, portMAX_DELAY);
     jsonDoc.clear();
     jsonDoc["code"] = 1;
     jsonDoc["api"] = api;
