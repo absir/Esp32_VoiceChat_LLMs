@@ -57,7 +57,7 @@ int playIndexed = -1;
 String api = axPreferences.getString("api", API);
 
 // ble常量
-const char *onBleCmdOk = "{\"code\":0}";
+const char *onBleCmdOk = "{\"code\":1}";
 const char *onBleCmdFail = "{\"err\":\"fail\"}";
 
 void micEnd(bool cancel);
@@ -144,6 +144,7 @@ void onBleCmdWifi(size_t lc, uint8_t *data)
     deserializeJson(jsonDoc, (const char *)data);
     // Serial.println("onBleCmdWifi deserializeJson did");
     netConned = false;
+    netConnSeq = axWifiConnSeq;
     axWifiConn(jsonDoc["ssid"], jsonDoc["passwd"]);
     // axWifiConn("yuanjiuyan", "88889999");
     // Serial.println("onBleCmdWifi axWifiConn did");
@@ -153,6 +154,7 @@ void onBleCmdWifi(size_t lc, uint8_t *data)
 void onBleCmdStatus(size_t lc, uint8_t *data)
 {
     jsonDoc.clear();
+    jsonDoc["code"] = 1;
     jsonDoc["api"] = api;
     jsonDoc["volume"] = axAudio->getVolume();
     jsonDoc["running"] = axAudio->isRunning();

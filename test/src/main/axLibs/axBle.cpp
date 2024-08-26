@@ -44,6 +44,7 @@ struct axCharacteristicCallbacksBuff
 	// 考虑双指令缓存
 	uint8_t data[2048];
 	size_t dataI;
+	uint8_t sendBuff[4];
 };
 
 axBleOnCmd *axBleOnCmds = nullptr;
@@ -144,8 +145,8 @@ void axBleReg(axBleCmd cmd, axBleOnCmd onCmd)
 
 void axBleSend(axBleCmd cmd, const char *data)
 {
-	Serial.println("axBleSend const char *" + String(cmd));
-	axBleSend(cmd, strlen(data), (uint8_t *)data);
+	// Serial.println("axBleSend const char *" + String(cmd));
+	axBleSend(cmd, data == nullptr ? 0 : strlen(data), (uint8_t *)data);
 }
 
 void axBleSend(axBleCmd cmd, size_t lc, uint8_t *data)
@@ -156,22 +157,37 @@ void axBleSend(axBleCmd cmd, size_t lc, uint8_t *data)
 	}
 
 	Serial.println("axBleSend: " + String(cmd) + ", " + String(lc));
-	size_t allLc = 4 + lc;
-	uint8_t *allData = new uint8_t(4 + lc);
-	allData[0] = AX_BLE_CMD_PRE;
-	allData[1] = cmd;
-	allData[2] = lc / 128;
-	allData[3] = lc % 128;
-	if (lc > 0)
+	if (!axCbuff)
 	{
-		memmove(allData + 4, data, lc);
+		axCbuff = new axCharacteristicCallbacksBuff();
 	}
 
-	Serial.println("axBleSend setValue 0");
-	// axBleCharacteristic->setValue(allData, allLc);
-	Serial.println("axBleSend notify 0");
-	// axBleCharacteristic->notify();
-	free(allData);
+	uint8_t *sendBuff = axCbuff->sendBuff;
+	sendBuff[0] = AX_BLE_CMD_PRE;
+	sendBuff[1] = cmd;
+	sendBuff[2] = lc / 128;
+	sendBuff[3] = lc % 128;
+	axBleCharacteristic->setValue(sendBuff, 4);
+	axBleCharacteristic->notify();
+	delay(200);
+
+	int i = 0;
+	while (i < lc)
+	{
+		int max = i + 20;
+		if (max <= lc)
+		{
+			axBleCharacteristic->setValue(data + i, lc - i);
+			axBleCharacteristic->notify();
+			delay(200);
+			break;
+		}
+
+		axBleCharacteristic->setValue(data + i, max - i);
+		axBleCharacteristic->notify();
+		delay(200);
+		i = max;
+	}
 }
 
 void axBleInit(bool allowDiscover)
@@ -226,6 +242,8 @@ void axBleInit(bool allowDiscover)
 	pAdvertising->setMinPreferred(0x12);
 	BLEDevice::startAdvertising();
 
+	// 发送资源提前占用堆栈
+	axBleSend(axBleCmdCount, nullptr);
 	Serial.println("axBleInit complete " + String(allowDiscover));
 }
 
