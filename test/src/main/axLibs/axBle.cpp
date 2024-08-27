@@ -16,15 +16,67 @@ bool _axBleInited = false;
 // 代码互斥
 SemaphoreHandle_t _axBleMutex = nullptr;
 
+#define axBleBuffLen 2048
+
 struct axCharacteristicCallbacksBuff
 {
 	// 考虑双指令缓存
-	uint8_t data[2048];
+	uint8_t data[axBleBuffLen];
 	size_t dataI;
 	uint8_t sendBuff[4];
 };
 
 struct axCharacteristicCallbacksBuff *axCbuff = nullptr;
+axBleOnCmd *axBleOnCmds = nullptr;
+
+void axBleOnCmdCall(uint8_t cmd, size_t lc, uint8_t *data)
+{
+	// Serial.println("onCmd: " + String(cmd) + ", " + String(lc));
+	axBleOnCmd onCmd = axBleOnCmds && cmd >= 0 && cmd < axBleCmdCount ? axBleOnCmds[cmd] : nullptr;
+	if (!onCmd)
+	{
+		Serial.println("onCmd unReg " + String(cmd));
+		return;
+	}
+
+	onCmd(lc, data);
+}
+
+bool axBleReadCmdNext(bool onCmd)
+{
+	if (axCbuff->dataI < 4)
+	{
+		return false;
+	}
+
+	if (axCbuff->data[0] != AX_BLE_CMD_PRE)
+	{
+		// 过滤非指令特征
+		axCbuff->dataI--;
+		memmove(axCbuff->data, axCbuff->data + 1, axCbuff->dataI);
+		return true;
+	}
+
+	size_t lc = axCbuff->data[2] * 128 + axCbuff->data[3];
+	size_t allLc = 4 + lc;
+	if (axCbuff->dataI < allLc)
+	{
+		// 数据长度不足
+		return false;
+	}
+
+	if (onCmd)
+	{
+		// 分发指令
+		axBleOnCmdCall(axCbuff->data[1], lc, axCbuff->data + 4);
+	}
+
+	// Serial.println("axBleReadCmdNext " + String(axCbuff->dataI) + " < " + String(axCbuff->data[1]) + ", " + String(lc));
+	// 一条指令读取完成
+	axCbuff->dataI -= allLc;
+	memmove(axCbuff->data, axCbuff->data + allLc, axCbuff->dataI);
+	return true;
+}
 
 class axServerCallbacks : public BLEServerCallbacks
 {
@@ -57,8 +109,6 @@ class axServerCallbacks : public BLEServerCallbacks
 		BLEDevice::startAdvertising();
 	}
 };
-
-axBleOnCmd *axBleOnCmds = nullptr;
 
 class axCharacteristicCallbacks : public BLECharacteristicCallbacks
 {
@@ -97,49 +147,33 @@ public:
 		}
 
 		size_t dataLen = pCharacteristic->getLength();
-		// Serial.println("ble onRecieve dataLen = " + String(dataLen));
-		memmove(axCbuff->data + axCbuff->dataI, pCharacteristic->getData(), dataLen);
-		axCbuff->dataI += dataLen;
-
-		while (axCbuff->dataI >= 4)
+		if (dataLen <= 0)
 		{
-			Serial.println("onRecieve = " + String(axCbuff->dataI));
-			if (axCbuff->data[0] != AX_BLE_CMD_PRE)
-			{
-				// 过滤非指令特征
-				axCbuff->dataI--;
-				memmove(axCbuff->data, axCbuff->data + 1, axCbuff->dataI);
-				continue;
-			}
-
-			size_t lc = axCbuff->data[2] * 128 + axCbuff->data[3];
-			size_t allLc = 4 + lc;
-			if (axCbuff->dataI < allLc)
-			{
-				// 数据长度不足
-				break;
-			}
-
-			// 分发指令
-			onCmd(axCbuff->data[1], lc, axCbuff->data + 4);
-
-			// 一条指令读取完成
-			axCbuff->dataI -= allLc;
-			memmove(axCbuff->data, axCbuff->data + allLc, axCbuff->dataI);
-		}
-	}
-
-	void onCmd(uint8_t cmd, size_t lc, uint8_t *data)
-	{
-		// Serial.println("onCmd: " + String(cmd) + ", " + String(lc));
-		axBleOnCmd onCmd = axBleOnCmds && cmd >= 0 && cmd < axBleCmdCount ? axBleOnCmds[cmd] : nullptr;
-		if (!onCmd)
-		{
-			Serial.println("onCmd unReg " + String(cmd));
 			return;
 		}
 
-		onCmd(lc, data);
+		// 数据安全锁
+		xSemaphoreTake(_axBleMutex, portMAX_DELAY);
+		while ((axCbuff->dataI + dataLen) > axBleBuffLen)
+		{
+			if (!axBleReadCmdNext(false))
+			{
+				// 超出长度, 清空缓冲区
+				axCbuff->dataI = 0;
+				break;
+			}
+		}
+
+		uint8_t *data = pCharacteristic->getData();
+		if (axCbuff->dataI > 0 || data[0] == AX_BLE_CMD_PRE)
+		{
+			// 数据添加到缓冲区
+			memmove(axCbuff->data + axCbuff->dataI, data, dataLen);
+			axCbuff->dataI += dataLen;
+		}
+
+		// Serial.println("axBle onRecieve " + String(dataLen) + ", " + String(axCbuff->dataI) + " < " + String(data[0]));
+		xSemaphoreGive(_axBleMutex);
 	}
 };
 
@@ -171,7 +205,6 @@ void axBleSend(axBleCmd cmd, size_t lc, uint8_t *data)
 		return;
 	}
 
-	xSemaphoreTake(_axBleMutex, portMAX_DELAY);
 	Serial.println("axBleSend: " + String(cmd) + ", " + String(lc));
 	if (!axCbuff)
 	{
@@ -183,8 +216,16 @@ void axBleSend(axBleCmd cmd, size_t lc, uint8_t *data)
 	sendBuff[1] = cmd;
 	sendBuff[2] = lc / 128;
 	sendBuff[3] = lc % 128;
-	Serial.println("axBleSend notify 0, " + String(lc));
+
+	// // Serial.println("axBleSend notify 0, " + String(lc));
+	// uint32_t core_id = xPortGetCoreID(); // 获取当前任务所在的CPU核心编号
+	// // 获取当前线程的初始堆栈大小
+	// uint32_t remaining_stack = uxTaskGetStackHighWaterMark(NULL); // 获取任务堆栈的剩余大小
+	// printf("Current CPU Core: %u\n", core_id);
+	// printf("Remaining Stack Size: %u bytes\n", remaining_stack);
+
 	axBleCharacteristic->setValue(sendBuff, 4);
+	// Serial.println("axBleSend notify 1, ");
 	axBleCharacteristic->notify();
 	axBleSendWaitDone();
 
@@ -193,8 +234,9 @@ void axBleSend(axBleCmd cmd, size_t lc, uint8_t *data)
 	{
 		int max = i + 20;
 		bool end = max >= lc;
-		Serial.println("axBleSend notify 1, " + String(max));
+		// Serial.println("axBleSend notify 2, " + String(end ? lc : max) + " - " + String(i));
 		axBleCharacteristic->setValue(data + i, (end ? lc : max) - i);
+		// Serial.println("axBleSend notify 3, " + String(lc));
 		axBleCharacteristic->notify();
 		axBleSendWaitDone();
 		if (end)
@@ -204,18 +246,11 @@ void axBleSend(axBleCmd cmd, size_t lc, uint8_t *data)
 
 		i = max;
 	}
-
-	xSemaphoreGive(_axBleMutex);
 }
 
 void axBleInit(bool allowDiscover)
 {
 	_axBleMutex = xSemaphoreCreateMutex();
-
-	// 蓝牙默认配置
-	// esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
-	// bt_cfg.controller_task_stack_size = 20480; // 设置 BTC_TASK 任务的栈空间大小
-	// esp_bt_controller_init(&bt_cfg);
 
 	if (_axBleInit < 0)
 	{
@@ -235,6 +270,10 @@ void axBleInit(bool allowDiscover)
 	}
 
 	axBleConnected = false;
+	// 蓝牙默认配置
+	// esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
+	// bt_cfg.controller_task_stack_size = 20480; // 设置 BTC_TASK 任务的栈空间大小
+	// esp_bt_controller_init(&bt_cfg);
 	BLEDevice::init(AX_BLE_DEVICE_NAME);
 
 	axBleServer = BLEDevice::createServer();
@@ -276,4 +315,16 @@ void axBleInit(bool allowDiscover)
 
 void axBleLoop()
 {
+	if (!axCbuff)
+	{
+		return;
+	}
+
+	// 数据安全锁
+	xSemaphoreTake(_axBleMutex, portMAX_DELAY);
+	// 执行指令
+	while (axBleReadCmdNext(true))
+	{
+	}
+	xSemaphoreGive(_axBleMutex);
 }

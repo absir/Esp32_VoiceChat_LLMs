@@ -21,6 +21,8 @@ typedef enum
     axBleCmdPlayState,
     // 播放音乐列表
     axBleCmdPlayList,
+    // 播放列表当前
+    axBleCmdPlayListOn,
     // 播放列表结束
     axBleCmdPlayListEnd,
     // 指令数量

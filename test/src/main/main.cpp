@@ -45,7 +45,9 @@ int axMicSilence = 0;
 AxClient axHttp;
 // http://192.168.36.10:8787/S/spoken/1
 // json解析
-DynamicJsonDocument jsonDoc(512);
+#define jsonDocLen 512
+DynamicJsonDocument jsonDoc(jsonDocLen);
+char jsonDocStr[jsonDocLen];
 
 DynamicJsonDocument jsonDocPlayList(2048);
 JsonArray *playList = nullptr;
@@ -60,10 +62,21 @@ String api = API;
 const char *onBleCmdOk = "{\"code\":1}";
 const char *onBleCmdFail = "{\"err\":\"fail\"}";
 
-// 代码互斥
-SemaphoreHandle_t loopMutex = nullptr;
+// 当前播放查询
+bool playListOnQuery = false;
 
 void micEnd(bool cancel);
+
+void axBleSendJson(axBleCmd cmd)
+{
+    if (!axBleCharacteristic)
+    {
+        return;
+    }
+
+    serializeJson(jsonDoc, jsonDocStr, jsonDocLen);
+    axBleSend(cmd, strlen(jsonDocStr), (uint8_t *)jsonDocStr);
+}
 
 void playListPrepare()
 {
@@ -95,13 +108,9 @@ void playListStop()
     }
 }
 
-void playListSend(int loadedSetPos, bool looped)
+void playListOnSend(int loadedSetPos)
 {
-    if (!looped)
-    {
-        xSemaphoreTake(loopMutex, portMAX_DELAY);
-    }
-
+    playListOnQuery = false;
     if (playList != nullptr && playIndex >= 0 && playIndex < playList->size())
     {
         uint32_t duration = loadedSetPos > 0 ? axAudio->getAudioFileDuration() : 0;
@@ -125,21 +134,8 @@ void playListSend(int loadedSetPos, bool looped)
             jsonDoc["id"] = jsonDocPlayList["id"];
         }
 
-        String jsonString;
-        serializeJson(jsonDoc, jsonString);
-        if (!looped)
-        {
-            xSemaphoreGive(loopMutex);
-        }
-
-        // 发送状态
-        axBleSend(axBleCmdPlayList, jsonString.c_str());
+        axBleSendJson(axBleCmdPlayListOn);
         return;
-    }
-
-    if (!looped)
-    {
-        xSemaphoreGive(loopMutex);
     }
 }
 
@@ -160,36 +156,28 @@ void playHost(const char *host)
 
 void onBleCmdWifi(size_t lc, uint8_t *data)
 {
-    xSemaphoreTake(loopMutex, portMAX_DELAY);
     deserializeJson(jsonDoc, (const char *)data);
     netConned = false;
     netConnSeq = axWifiConnSeq;
     axWifiConn(jsonDoc["ssid"], jsonDoc["passwd"]);
-    xSemaphoreGive(loopMutex);
     // 返回
     axBleSend(axBleCmdWifi, onBleCmdOk);
 }
 
 void onBleCmdStatus(size_t lc, uint8_t *data)
 {
-    xSemaphoreTake(loopMutex, portMAX_DELAY);
     jsonDoc.clear();
     jsonDoc["code"] = 1;
     jsonDoc["api"] = api;
     jsonDoc["volume"] = axAudio->getVolume();
     jsonDoc["running"] = axAudio->isRunning();
-    String jsonString;
-    serializeJson(jsonDoc, jsonString);
-    xSemaphoreGive(loopMutex);
-    // 返回
-    axBleSend(axBleCmdStatus, jsonString.c_str());
+    axBleSendJson(axBleCmdStatus);
     // 发送当前播放列表信息
-    playListSend(1, false);
+    playListOnQuery = true;
 }
 
 void onBleCmdSet(size_t lc, uint8_t *data)
 {
-    xSemaphoreTake(loopMutex, portMAX_DELAY);
     deserializeJson(jsonDoc, (const char *)data);
     if (jsonDoc.containsKey("api"))
     {
@@ -212,13 +200,11 @@ void onBleCmdSet(size_t lc, uint8_t *data)
         int volume = jsonDoc["volume"];
         axAudioSetVolume(volume);
     }
-    xSemaphoreGive(loopMutex);
 }
 
 void onBleCmdPlayState(size_t lc, uint8_t *data)
 {
     int state = atoi((const char *)data);
-    xSemaphoreTake(loopMutex, portMAX_DELAY);
     switch (state)
     {
     case 1:
@@ -244,46 +230,37 @@ void onBleCmdPlayState(size_t lc, uint8_t *data)
         playListStop();
         break;
     }
-    xSemaphoreGive(loopMutex);
 }
 
 void onBleCmdPlayList(size_t lc, uint8_t *data)
 {
-    xSemaphoreTake(loopMutex, portMAX_DELAY);
     deserializeJson(jsonDocPlayList, (const char *)data);
-    if (!jsonDocPlayList.containsKey("list"))
+    if (jsonDocPlayList.containsKey("list"))
     {
-        playList = nullptr;
-        xSemaphoreGive(loopMutex);
-        return;
-    }
-
-    JsonArray list = jsonDocPlayList["list"];
-    playListPrepare();
-    playList = &list;
-    int playIndex = jsonDocPlayList.containsKey("index") ? jsonDocPlayList["index"] : 0;
-    if (playIndex >= 0 && playIndex < playList->size())
-    {
-        JsonObject playData = (*playList)[playIndex];
-        if (playData.containsKey("url"))
+        JsonArray list = jsonDocPlayList["list"];
+        playListPrepare();
+        playList = &list;
+        int playIndex = jsonDocPlayList.containsKey("index") ? jsonDocPlayList["index"] : 0;
+        if (playIndex >= 0 && playIndex < playList->size())
         {
-            // 播放，待同步
-            playIndexed = -1;
-            axAudio->connecttohost(playData["url"]);
-            playListSend(0, true);
-            xSemaphoreGive(loopMutex);
-            return;
+            JsonObject playData = (*playList)[playIndex];
+            if (playData.containsKey("url"))
+            {
+                // 播放，待同步
+                playIndexed = -1;
+                axAudio->connecttohost(playData["url"]);
+                axBleSend(axBleCmdPlayList, onBleCmdOk);
+                return;
+            }
         }
     }
 
     playList = nullptr;
-    xSemaphoreGive(loopMutex);
+    axBleSend(axBleCmdPlayList, onBleCmdFail);
 }
 
 void setup()
 {
-    loopMutex = xSemaphoreCreateMutex();
-
     axPreferences.begin(AX_PRE_NAMESPACE);
     api = axPreferences.getString("api", API);
     axPreferences.end();
@@ -376,8 +353,23 @@ void micEnd(bool cancel)
     }
 }
 
-void loopMutexDo()
+void loop()
 {
+    if (digitalRead(resetPin) == LOW)
+    {
+        // 重置
+        // axPreferences.begin(AX_PRE_NAMESPACE);
+        // axPreferences.clear();
+        // axPreferences.end();
+        // ESP.restart();
+        // return;
+    }
+
+    // loop状态
+    if (loopDelay > 0)
+        delay(loopDelay);
+    loopDelay = loopDelayDefault;
+
     // 蓝牙
     axBleLoop();
     // WIFI
@@ -477,7 +469,7 @@ void loopMutexDo()
         loopDelay = 0;
         if (playIndexed == -1 && playIndexed != playIndex)
         {
-            playListSend(2, true);
+            playListOnSend(2);
         }
 
         return;
@@ -503,32 +495,15 @@ void loopMutexDo()
         }
     }
 
+    if (playListOnQuery)
+    {
+        playListOnSend(1);
+    }
+
     // 空闲
     if (status != MainStatusIdle)
     {
         status = MainStatusIdle;
         digitalWrite(ledPin, LOW);
     }
-}
-
-void loop()
-{
-    if (digitalRead(resetPin) == LOW)
-    {
-        // 重置
-        axPreferences.begin(AX_PRE_NAMESPACE);
-        axPreferences.clear();
-        axPreferences.end();
-        ESP.restart();
-        return;
-    }
-
-    // loop状态
-    if (loopDelay > 0)
-        delay(loopDelay);
-    loopDelay = loopDelayDefault;
-
-    xSemaphoreTake(loopMutex, portMAX_DELAY);
-    loopMutexDo();
-    xSemaphoreGive(loopMutex);
 }
