@@ -59,11 +59,22 @@ int playIndexed = -1;
 String api = API;
 
 // ble常量
-const char *onBleCmdOk = "{\"code\":1}";
-const char *onBleCmdFail = "{\"err\":\"fail\"}";
+#define onBleCmdOk "{\"code\":1}"
+#define onBleCmdFail "{\"err\":\"fail\"}"
 
 // 当前播放查询
 bool playListOnQuery = false;
+
+hw_timer_t *timer = NULL;                             // 定时器实例
+portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED; // 定时器锁
+volatile bool flag = false;                           // 中断标志
+
+void IRAM_ATTR onTimer()
+{
+    portENTER_CRITICAL_ISR(&timerMux);
+    flag = true; // 设置中断标志
+    portEXIT_CRITICAL_ISR(&timerMux);
+}
 
 void micEnd(bool cancel);
 
@@ -238,7 +249,6 @@ void onBleCmdPlayList(size_t lc, uint8_t *data)
     if (jsonDocPlayList.containsKey("list"))
     {
         JsonArray list = jsonDocPlayList["list"];
-        playListPrepare();
         playList = &list;
         int playIndex = jsonDocPlayList.containsKey("index") ? jsonDocPlayList["index"] : 0;
         if (playIndex >= 0 && playIndex < playList->size())
@@ -247,6 +257,7 @@ void onBleCmdPlayList(size_t lc, uint8_t *data)
             if (playData.containsKey("url"))
             {
                 // 播放，待同步
+                playListPrepare();
                 playIndexed = -1;
                 axAudio->connecttohost(playData["url"]);
                 axBleSend(axBleCmdPlayList, onBleCmdOk);
@@ -261,6 +272,11 @@ void onBleCmdPlayList(size_t lc, uint8_t *data)
 
 void setup()
 {
+    timer = timerBegin(0, 80, true);             // 初始化定时器
+    timerAttachInterrupt(timer, &onTimer, true); // 绑定中断处理程序
+    timerAlarmWrite(timer, 1000000, true);       // 设置定时器中断间隔为1秒
+    timerAlarmEnable(timer);                     // 启用定时器中断
+
     axPreferences.begin(AX_PRE_NAMESPACE);
     api = axPreferences.getString("api", API);
     axPreferences.end();

@@ -23,7 +23,7 @@ struct axCharacteristicCallbacksBuff
 	// 考虑双指令缓存
 	uint8_t data[axBleBuffLen];
 	size_t dataI;
-	uint8_t sendBuff[4];
+	uint8_t sendBuff[20];
 };
 
 struct axCharacteristicCallbacksBuff *axCbuff = nullptr;
@@ -224,8 +224,9 @@ void axBleSend(axBleCmd cmd, size_t lc, uint8_t *data)
 	// printf("Current CPU Core: %u\n", core_id);
 	// printf("Remaining Stack Size: %u bytes\n", remaining_stack);
 
+	Serial.println("axBleSend notify 0, " + String(cmd));
 	axBleCharacteristic->setValue(sendBuff, 4);
-	// Serial.println("axBleSend notify 1, ");
+	Serial.println("axBleSend notify 1, " + String(cmd));
 	axBleCharacteristic->notify();
 	axBleSendWaitDone();
 
@@ -234,9 +235,13 @@ void axBleSend(axBleCmd cmd, size_t lc, uint8_t *data)
 	{
 		int max = i + 20;
 		bool end = max >= lc;
-		// Serial.println("axBleSend notify 2, " + String(end ? lc : max) + " - " + String(i));
-		axBleCharacteristic->setValue(data + i, (end ? lc : max) - i);
-		// Serial.println("axBleSend notify 3, " + String(lc));
+		size_t len = (end ? lc : max) - i;
+		Serial.println("axBleSend notify 2, " + String(cmd) + ", " + String(len));
+		axBleCharacteristic->setValue(data + i, len);
+		// memcpy(sendBuff, data + i, len);
+		// Serial.println("axBleSend notify 3, " + String(cmd));
+		// axBleCharacteristic->setValue(sendBuff, len);
+		Serial.println("axBleSend notify 4, " + String(cmd));
 		axBleCharacteristic->notify();
 		axBleSendWaitDone();
 		if (end)
