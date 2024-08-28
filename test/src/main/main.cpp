@@ -46,11 +46,11 @@ AxClient axHttp;
 // http://192.168.36.10:8787/S/spoken/1
 // json解析
 #define jsonDocLen 512
-DynamicJsonDocument jsonDoc(jsonDocLen);
+StaticJsonDocument<jsonDocLen> jsonDoc;
 char jsonDocStr[jsonDocLen];
 
-DynamicJsonDocument jsonDocPlayList(2048);
-JsonArray *playList = nullptr;
+StaticJsonDocument<2048> jsonDocPlayList;
+bool playList;
 int playIndex = 0;
 int playIndexed = -1;
 
@@ -64,17 +64,6 @@ String api = API;
 
 // 当前播放查询
 bool playListOnQuery = false;
-
-hw_timer_t *timer = NULL;                             // 定时器实例
-portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED; // 定时器锁
-volatile bool flag = false;                           // 中断标志
-
-void IRAM_ATTR onTimer()
-{
-    portENTER_CRITICAL_ISR(&timerMux);
-    flag = true; // 设置中断标志
-    portEXIT_CRITICAL_ISR(&timerMux);
-}
 
 void micEnd(bool cancel);
 
@@ -100,8 +89,6 @@ void playListPrepare()
     {
         axAudio->stopSong();
     }
-
-    playIndexed = -1;
 }
 
 void playListStop()
@@ -111,27 +98,65 @@ void playListStop()
         axAudio->stopSong();
     }
 
-    if (playList != nullptr)
+    if (playList)
     {
-        playList = nullptr;
+        playList = false;
         // stop
         axBleSend(axBleCmdPlayState, "4");
     }
 }
 
+bool playListIndex()
+{
+    if (!playList)
+    {
+        return false;
+    }
+
+    JsonArray list = jsonDocPlayList["list"];
+    if (playIndex >= 0 && playIndex < list.size())
+    {
+        JsonObject data = list[playIndex];
+        if (data.containsKey("url"))
+        {
+            const char *url = data["url"];
+            const char *host = strstr(url, "://") && jsonDocPlayList.containsKey("host") ? nullptr : jsonDocPlayList["host"];
+            if (host)
+            {
+                strcpy(jsonDocStr, host);
+                strcat(jsonDocStr, url);
+                axAudio->connecttohost(jsonDocStr);
+            }
+            else
+            {
+                axAudio->connecttohost(url);
+            }
+
+            playIndexed = -1;
+            return true;
+        }
+    }
+    else
+    {
+        playList = false;
+    }
+
+    return false;
+}
+
 void playListOnSend(int loadedSetPos)
 {
     playListOnQuery = false;
-    if (playList != nullptr && playIndex >= 0 && playIndex < playList->size())
+    if (!playList)
     {
-        uint32_t duration = loadedSetPos > 0 ? axAudio->getAudioFileDuration() : 0;
-        playIndexed = playIndex;
-        JsonObject playData = (*playList)[playIndex];
-        if (duration > 0 && loadedSetPos == 2 && playData.containsKey("pos"))
-        {
-            axAudio->setAudioPlayPosition(playData["pos"]);
-        }
+        return;
+    }
 
+    JsonArray list = jsonDocPlayList["list"];
+    if (playIndex >= 0 && playIndex < list.size())
+    {
+        playIndexed = playIndex;
+        uint32_t duration = loadedSetPos > 0 ? axAudio->getAudioFileDuration() : 0;
         jsonDoc.clear();
         if (duration > 0 && loadedSetPos == 1)
         {
@@ -139,7 +164,7 @@ void playListOnSend(int loadedSetPos)
             jsonDoc["current"] = axAudio->getAudioCurrentTime();
         }
 
-        jsonDoc["data"] = playData;
+        jsonDoc["data"] = list[playIndex];
         if (jsonDocPlayList.containsKey("id"))
         {
             jsonDoc["id"] = jsonDocPlayList["id"];
@@ -248,35 +273,17 @@ void onBleCmdPlayList(size_t lc, uint8_t *data)
     deserializeJson(jsonDocPlayList, (const char *)data);
     if (jsonDocPlayList.containsKey("list"))
     {
-        JsonArray list = jsonDocPlayList["list"];
-        playList = &list;
-        int playIndex = jsonDocPlayList.containsKey("index") ? jsonDocPlayList["index"] : 0;
-        if (playIndex >= 0 && playIndex < playList->size())
-        {
-            JsonObject playData = (*playList)[playIndex];
-            if (playData.containsKey("url"))
-            {
-                // 播放，待同步
-                playListPrepare();
-                playIndexed = -1;
-                axAudio->connecttohost(playData["url"]);
-                axBleSend(axBleCmdPlayList, onBleCmdOk);
-                return;
-            }
-        }
+        playList = true;
+        playIndex = jsonDocPlayList.containsKey("index") ? jsonDocPlayList["index"] : 0;
+        playListPrepare();
+        playListIndex();
     }
 
-    playList = nullptr;
     axBleSend(axBleCmdPlayList, onBleCmdFail);
 }
 
 void setup()
 {
-    timer = timerBegin(0, 80, true);             // 初始化定时器
-    timerAttachInterrupt(timer, &onTimer, true); // 绑定中断处理程序
-    timerAlarmWrite(timer, 1000000, true);       // 设置定时器中断间隔为1秒
-    timerAlarmEnable(timer);                     // 启用定时器中断
-
     axPreferences.begin(AX_PRE_NAMESPACE);
     api = axPreferences.getString("api", API);
     axPreferences.end();
@@ -492,22 +499,11 @@ void loop()
     }
     else
     {
-        if (axAudioRunning && playList != nullptr)
+        if (axAudioRunning && playList)
         {
             // 自动播放下一曲
             playIndex++;
-            if (playIndex >= 0 && playIndex < playList->size())
-            {
-                JsonObject playData = (*playList)[playIndex];
-                if (playData.containsKey("url"))
-                {
-                    playIndexed = -1;
-                    axAudio->connecttohost(playData["url"]);
-                    return;
-                }
-            }
-
-            playList = nullptr;
+            playListIndex();
         }
     }
 

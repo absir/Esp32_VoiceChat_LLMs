@@ -23,11 +23,21 @@ struct axCharacteristicCallbacksBuff
 	// 考虑双指令缓存
 	uint8_t data[axBleBuffLen];
 	size_t dataI;
-	uint8_t sendBuff[20];
+	uint8_t sendBuff[4];
 };
 
 struct axCharacteristicCallbacksBuff *axCbuff = nullptr;
 axBleOnCmd *axBleOnCmds = nullptr;
+
+void axBleBuffClear()
+{
+	if (axCbuff)
+	{
+		xSemaphoreTake(_axBleMutex, portMAX_DELAY);
+		axCbuff->dataI = 0;
+		xSemaphoreGive(_axBleMutex);
+	}
+}
 
 void axBleOnCmdCall(uint8_t cmd, size_t lc, uint8_t *data)
 {
@@ -88,23 +98,13 @@ class axServerCallbacks : public BLEServerCallbacks
 		}
 
 		axBleConnected = true;
-		if (_axBleInit == 0)
-		{
-			_axBleInit = 1;
-			axPreferences.begin(AX_PRE_NAMESPACE);
-			axPreferences.putBool(PRE_KEY_BLE_CONNED, true);
-			axPreferences.end();
-		}
-
-		if (axCbuff)
-		{
-			axCbuff->dataI = 0;
-		}
+		axBleBuffClear();
 	}
 
 	void onDisconnect(BLEServer *pServer)
 	{
 		axBleConnected = false;
+		axBleBuffClear();
 		// 重新可见
 		BLEDevice::startAdvertising();
 	}
@@ -196,6 +196,7 @@ void axBleSend(axBleCmd cmd, const char *data)
 void axBleSendWaitDone()
 {
 	delay(80);
+	// vTaskDelay(80 / portTICK_PERIOD_MS);
 }
 
 void axBleSend(axBleCmd cmd, size_t lc, uint8_t *data)
@@ -224,9 +225,9 @@ void axBleSend(axBleCmd cmd, size_t lc, uint8_t *data)
 	// printf("Current CPU Core: %u\n", core_id);
 	// printf("Remaining Stack Size: %u bytes\n", remaining_stack);
 
-	Serial.println("axBleSend notify 0, " + String(cmd));
+	// Serial.println("axBleSend notify 0, " + String(cmd));
 	axBleCharacteristic->setValue(sendBuff, 4);
-	Serial.println("axBleSend notify 1, " + String(cmd));
+	// Serial.println("axBleSend notify 1, " + String(cmd));
 	axBleCharacteristic->notify();
 	axBleSendWaitDone();
 
@@ -236,12 +237,12 @@ void axBleSend(axBleCmd cmd, size_t lc, uint8_t *data)
 		int max = i + 20;
 		bool end = max >= lc;
 		size_t len = (end ? lc : max) - i;
-		Serial.println("axBleSend notify 2, " + String(cmd) + ", " + String(len));
+		// Serial.println("axBleSend notify 2, " + String(cmd) + ", " + String(len));
 		axBleCharacteristic->setValue(data + i, len);
 		// memcpy(sendBuff, data + i, len);
 		// Serial.println("axBleSend notify 3, " + String(cmd));
 		// axBleCharacteristic->setValue(sendBuff, len);
-		Serial.println("axBleSend notify 4, " + String(cmd));
+		// Serial.println("axBleSend notify 4, " + String(cmd));
 		axBleCharacteristic->notify();
 		axBleSendWaitDone();
 		if (end)
@@ -330,6 +331,7 @@ void axBleLoop()
 	// 执行指令
 	while (axBleReadCmdNext(true))
 	{
+		delay(80);
 	}
 	xSemaphoreGive(_axBleMutex);
 }
